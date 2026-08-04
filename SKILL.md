@@ -9,6 +9,8 @@ description: 本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片
 
 本文中的 `glance`, `ground`, `detect`, `trace`, `dominant_colors`, `pixel_diff` 分别是 `bun run scripts/glance.ts`, `bun run scripts/ground.ts`, `bun run scripts/detect.ts`, `bun run scripts/trace.ts`, `bun run scripts/dominant_colors.ts`, `bun run scripts/pixel_diff.ts` 的缩写.
 
+默认配置从 `~/.config/lookit/config.toml` 读取, 可用 `LOOKIT_CONFIG` 指定其他 TOML 文件; 顶层字段为 `version`, `api_key`, `base_url`, `model`, `lang`; 也支持直接使用 `LOOKIT_API_KEY` 等环境变量覆盖.
+
 根据要回答的问题选择工具:
 
 | 问题 | 工具 |

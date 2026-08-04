@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { imageSize, parseRegion } from "./image-utils.ts";
+import { loadLookitConfig } from "./lookit-config.ts";
 
 export class VisionError extends Error {}
 
@@ -20,6 +21,7 @@ function required(name: string): string {
 }
 
 export function validateVisionConfig(): void {
+  loadLookitConfig();
   for (const name of ["LOOKIT_API_KEY", "LOOKIT_BASE_URL", "LOOKIT_MODEL"]) {
     required(name);
   }
