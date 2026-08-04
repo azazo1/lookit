@@ -5,7 +5,7 @@ description: 本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片
 
 # lookit
 
-四个本地 CLI 让纯文本 agent 拥有看图能力. 它们共享同一份视觉配置 (`VISION_API_KEY` / `VISION_BASE_URL` / `VISION_MODEL` / `LANG`), 不需要额外凭证.
+四个本地 CLI 让纯文本 agent 拥有看图能力. 它们共享同一份视觉配置 (`LOOKIT_API_KEY` / `LOOKIT_BASE_URL` / `LOOKIT_MODEL` / `LOOKIT_LANG`), 不需要额外凭证.
 
 根据要回答的问题选择工具:
 
