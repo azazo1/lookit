@@ -1,0 +1,15 @@
+{
+  "name": "lookit",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dominant-colors": "bun run scripts/dominant_colors.ts",
+    "pixel-diff": "bun run scripts/pixel_diff.ts"
+  },
+  "dependencies": {
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14"
+  }
+}

@@ -16,7 +16,7 @@ list element by element with single-target calls — that spends one vision
 call per element for what one call returns. A full-screen pass
 under-reports on dense screens, so treat it as the scaffold:
 `detect --region` each layout block for a complete local list, then zoom
-with `glance --region` and sample colors with Pillow.
+with `glance --region` and sample colors with `scripts/dominant_colors.ts`.
 
 **2. Take every number from pixels, never from prose.**
 
@@ -68,13 +68,13 @@ moves:
 
 1. `glance <image> --region <box> -q "name the colours in this region"` —
    prose labels only. This step names the clusters; it does not measure them.
-2. `python3 scripts/dominant_colors.py <image> --region <box>` — downsample,
+2. `bun run scripts/dominant_colors.ts <image> --region <box>` — downsample,
    quantize, merge near-duplicates, and print the top colour clusters with the
    share each owns. The histogram is the role map: the biggest share is
    usually the background, smaller shares the accents.
 3. Map each label to the candidate palette it implies, then let the pixels
    choose:
-   `python3 scripts/dominant_colors.py <image> --region <box> --candidates '#F9FAFA,#F5F5F5,#F3F3F3,#EDEDED'`
+   `bun run scripts/dominant_colors.ts <image> --region <box> --candidates '#F9FAFA,#F5F5F5,#F3F3F3,#EDEDED'`
    — each candidate is scored by a distance filter over the region's pixels
    and the best one wins. Use that hex in the rebuild.
 
@@ -86,7 +86,7 @@ from the pixels.
 Render what you built (Playwright for HTML, rsvg-convert for SVG), then:
 
 ```bash
-python3 scripts/pixel_diff.py <original.png> <rendered.png>
+bun run scripts/pixel_diff.ts <original.png> <rendered.png>
 ```
 
 It prints an overall difference percentage and the worst regions as

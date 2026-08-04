@@ -17,8 +17,8 @@ Pick the tool by the question you are answering:
 | "Where is X?" — a thing you can name | `ground` |
 | "Where are all the Xs?" — every instance of a kind | `detect` |
 | "What is its exact shape, size, offset?" | `trace` |
-| "Which colours dominate a region, and which palette value fits it?" | `scripts/dominant_colors.py` |
-| A number none of them return — a colour value, the gap between two things | code over the pixels (Pillow) |
+| "Which colours dominate a region, and which palette value fits it?" | `scripts/dominant_colors.ts` |
+| A number none of them return — a colour value, the gap between two things | code over the pixels (Bun + sharp) |
 
 `glance` answers what something is; `ground` and `detect` answer where.
 You give `ground` a description of a particular thing; you give `detect` a
@@ -30,7 +30,7 @@ not reliable. That is accurate enough to crop with, to click, to compare
 positions against. When a number has to be exact, `trace` derives it from
 the actual pixels — offsets, sizes, shapes.
 
-Drop to Pillow only for what none of them return: sampling a colour, or
+Drop to raw pixels only for what none of them return: sampling a colour, or
 computing a relation between two things you already located.
 
 ## glance — ask about an image
@@ -50,7 +50,7 @@ crop, so small text and icons become readable.
 
 But "what changed between these two?" is not a glance question. A one-word
 badge or a small shift is a rounding error to a vision model and exact to
-`scripts/pixel_diff.py`. Diff first to get the box, then `glance --region`
+`scripts/pixel_diff.ts`. Diff first to get the box, then `glance --region`
 that box to read what the change actually is.
 
 ## ground — locate a named target
@@ -113,7 +113,7 @@ ship-vs-hand-write call.
 ## pixel_diff — where two images differ (local, no vision API)
 
 ```bash
-python3 scripts/pixel_diff.py <a> <b>      # path is relative to this skill dir
+bun run scripts/pixel_diff.ts <a> <b>      # path is relative to this skill dir
 ```
 
 Prints an overall difference percentage plus the worst regions as `x1: ..`
@@ -123,10 +123,13 @@ model rounds off.
 ## dominant_colors — a region's palette, and the exact value among candidates (local, no vision API)
 
 ```bash
-python3 scripts/dominant_colors.py <image> --region X1,Y1,X2,Y2          # top colour clusters + shares
-python3 scripts/dominant_colors.py <image> --region X1,Y1,X2,Y2 \
+bun run scripts/dominant_colors.ts <image> --region X1,Y1,X2,Y2          # top colour clusters + shares
+bun run scripts/dominant_colors.ts <image> --region X1,Y1,X2,Y2 \
   --candidates '#F9FAFA,#F5F5F5,#F3F3F3,#EDEDED'                        # pick the best candidate
 ```
+
+Both scripts need Bun and the `sharp` package. After installing this skill,
+run `bun install` inside the skill directory once.
 
 A vision model names a colour ("light gray") but not its value. The first
 mode downsamples, quantizes, and merges near-duplicates to list the region's
