@@ -7,6 +7,8 @@ description: 本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片
 
 四个本地 CLI 让纯文本 agent 拥有看图能力. 它们共享同一份视觉配置 (`LOOKIT_API_KEY` / `LOOKIT_BASE_URL` / `LOOKIT_MODEL` / `LOOKIT_LANG`), 不需要额外凭证.
 
+本文中的 `glance`, `ground`, `detect`, `trace`, `dominant_colors`, `pixel_diff` 分别是 `bun run scripts/glance.ts`, `bun run scripts/ground.ts`, `bun run scripts/detect.ts`, `bun run scripts/trace.ts`, `bun run scripts/dominant_colors.ts`, `bun run scripts/pixel_diff.ts` 的缩写.
+
 根据要回答的问题选择工具:
 
 | 问题 | 工具 |
@@ -15,8 +17,8 @@ description: 本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片
 | X 在哪里? (能描述出具体对象) | `ground` |
 | 有哪些 X? (某一类对象的全部实例) | `detect` |
 | 精确形状/大小/偏移是什么? | `trace` |
-| 区域内有哪些主色, 候选色中哪个最接近? | `scripts/dominant_colors.ts` |
-| 这些工具没有返回的数字, 比如颜色值或两个元素之间的距离 | 直接读取像素 (Bun + sharp) |
+| 区域内有哪些主色, 候选色中哪个最接近? | `dominant_colors` |
+| 这些工具没有返回的数字, 比如颜色值或两个元素之间的距离 | `pixel_diff` |
 
 `glance` 回答"是什么", `ground` 和 `detect` 回答"在哪里". `ground` 接收一个具体对象的描述, `detect` 接收一个类别并枚举实例.
 
@@ -36,7 +38,7 @@ glance <img1> <img2> -q "..."                  # 单次调用对比多张图
 
 对比时要把所有图片路径放在一次调用里. 分开调用看不到同一张图, 事后比较两段描述会形成两次幻觉面, 而不是真正对比. `--region` 只上传裁剪区域, 小文字和小图标会更容易识别.
 
-但"两张图之间发生了什么变化"不是 `glance` 的问题. 一个单词徽章或小幅位移对视觉模型来说只是舍入误差, 对 `scripts/pixel_diff.ts` 来说却很精确. 先用 pixel_diff 拿到差异框, 再用 `glance --region` 放大该区域读取实际变化.
+但"两张图之间发生了什么变化"不是 `glance` 的问题. 一个单词徽章或小幅位移对视觉模型来说只是舍入误差, 对 `pixel_diff` 来说却很精确. 先用 pixel_diff 拿到差异框, 再用 `glance --region` 放大该区域读取实际变化.
 
 ## ground - 定位指定目标
 
@@ -82,7 +84,7 @@ trace <image> --region X1,Y1,X2,Y2 -o out.svg  # 先裁剪再追踪
 ## pixel_diff - 两张图哪里不同 (本地处理, 不调用视觉 API)
 
 ```bash
-bun run scripts/pixel_diff.ts <图A> <图B>      # 路径相对本 skill 目录
+pixel_diff <图A> <图B>
 ```
 
 输出整体差异百分比, 以及最严重区域的 `x1: ..` 框; 这些框可以直接传给 `glance --region`. 视觉模型会舍入, 这个工具是精确版本.
@@ -90,12 +92,12 @@ bun run scripts/pixel_diff.ts <图A> <图B>      # 路径相对本 skill 目录
 ## dominant_colors - 区域主色与候选色值 (本地处理, 不调用视觉 API)
 
 ```bash
-bun run scripts/dominant_colors.ts <image> --region X1,Y1,X2,Y2          # 输出主色聚类和占比
-bun run scripts/dominant_colors.ts <image> --region X1,Y1,X2,Y2 \
-  --candidates '#F9FAFA,#F5F5F5,#F3F3F3,#EDEDED'                        # 从候选色中选最接近值
+dominant_colors <image> --region X1,Y1,X2,Y2          # 输出主色聚类和占比
+dominant_colors <image> --region X1,Y1,X2,Y2 \
+  --candidates '#F9FAFA,#F5F5F5,#F3F3F3,#EDEDED'      # 从候选色中选最接近值
 ```
 
-两个脚本需要 Bun 和 `sharp` 包. 安装本 skill 后, 在 skill 目录里执行一次 `bun install`.
+所有 CLI 需要 Bun 和 `sharp` 包; `glance/ground/detect` 还需要视觉 API. 安装本 skill 后, 在 skill 目录里执行一次 `bun install`.
 
 视觉模型能说出颜色名称 (比如 "浅灰"), 但不能给出具体色值. 第一种模式降采样, 量化和合并相近颜色, 输出区域主要颜色及各自占比; 直方图显示哪个是背景, 哪个是强调色. 给定标签对应的候选调色板后, 第二种模式按区域像素与每个候选色的接近程度打分并输出胜者. 色值从这里取, 不要从 `glance` 的散文描述里取. 路径相对本 skill 自己的目录.
 

@@ -8,7 +8,7 @@
 
 **1. 先一次盘点, 再按区域细化.**
 
-一次全屏 `detect` 调用得到元素清单. 不要用单个目标调用逐个收集元素, 那样每个元素消耗一次视觉调用, 而一次调用本来就能返回. 全屏扫描在密集页面会漏报, 把它当作脚手架: 对每个布局区块执行 `detect --region` 得到完整局部清单, 再用 `glance --region` 放大, 用 `scripts/dominant_colors.ts` 采样颜色.
+一次全屏 `detect` 调用得到元素清单. 不要用单个目标调用逐个收集元素, 那样每个元素消耗一次视觉调用, 而一次调用本来就能返回. 全屏扫描在密集页面会漏报, 把它当作脚手架: 对每个布局区块执行 `detect --region` 得到完整局部清单, 再用 `glance --region` 放大, 用 `dominant_colors` 采样颜色.
 
 **2. 所有数字来自像素, 不要来自散文.**
 
@@ -34,9 +34,9 @@
 `glance` 能告诉你某区域看起来是 "浅灰", 但不能确定是 `#F9FAFA`, `#F5F5F5` 还是 `#EDEDED`; 重建页面用错灰色会明显不对, 即使两者都叫 "浅灰". 分三步处理颜色:
 
 1. `glance <image> --region <box> -q "描述这个区域的颜色名称"` - 只拿文字标签; 这一步命名聚类, 不测量.
-2. `bun run scripts/dominant_colors.ts <image> --region <box>` - 降采样, 量化并合并相近颜色, 输出主要颜色聚类及占比. 直方图是角色图: 占比最大通常是背景, 较小的是强调色.
+2. `dominant_colors <image> --region <box>` - 降采样, 量化并合并相近颜色, 输出主要颜色聚类及占比. 直方图是角色图: 占比最大通常是背景, 较小的是强调色.
 3. 把每个标签映射到候选调色板, 再让像素选择:
-   `bun run scripts/dominant_colors.ts <image> --region <box> --candidates '#F9FAFA,#F5F5F5,#F3F3F3,#EDEDED'`
+   `dominant_colors <image> --region <box> --candidates '#F9FAFA,#F5F5F5,#F3F3F3,#EDEDED'`
    每个候选色按区域像素距离打分, 最接近者胜出. 重建时使用该十六进制色值.
 
 第 2 步规则仍然成立: 标签来自模型, 色值来自像素.
@@ -46,7 +46,7 @@
 渲染出产物 (HTML 用 Playwright, SVG 用 rsvg-convert), 然后:
 
 ```bash
-bun run scripts/pixel_diff.ts <原始图.png> <渲染结果.png>
+pixel_diff <原始图.png> <渲染结果.png>
 ```
 
 它会输出整体差异百分比, 以及最严重区域的 `x1: .., y1: ..` 框; 这些框的格式和 `glance --region`, `detect --region` 相同, 所以最严重的区域可以直接交给放大调用. 修复最大差异, 重新渲染, 重新运行; 数字应逐轮下降.

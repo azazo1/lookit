@@ -3,10 +3,15 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "glance": "bun run scripts/glance.ts",
+    "ground": "bun run scripts/ground.ts",
+    "detect": "bun run scripts/detect.ts",
+    "trace": "bun run scripts/trace.ts",
     "dominant-colors": "bun run scripts/dominant_colors.ts",
     "pixel-diff": "bun run scripts/pixel_diff.ts"
   },
   "dependencies": {
+    "@visioncortex/vtracer": "^1.0.0-alpha.3",
     "sharp": "^0.35.3"
   },
   "devDependencies": {
