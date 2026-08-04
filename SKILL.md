@@ -1,6 +1,6 @@
 ---
 name: lookit
-description: 本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片), ground (定位目标并输出像素框), detect (盘点元素), trace (把图片转为 SVG 几何), 以及 dominant_colors 和 pixel_diff. 适用于图片问答, 文字提取, 元素定位, 图片对比, HTML/SVG 还原等需要看图的场景.
+description: 给无视觉能力模型提供的本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片), ground (定位目标并输出像素框), detect (盘点元素), trace (把图片转为 SVG 几何), 以及 dominant_colors 和 pixel_diff. 适用于图片问答, 文字提取, 元素定位, 图片对比, HTML/SVG 还原等需要看图的场景.
 ---
 
 # lookit
