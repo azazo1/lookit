@@ -1,0 +1,4 @@
+interface:
+  display_name: "lookit"
+  short_description: "Ask about, OCR, locate, inventory, and vectorize images with lookit CLIs"
+  default_prompt: "Use $lookit to look at this image with glance, ground, detect, or trace."
