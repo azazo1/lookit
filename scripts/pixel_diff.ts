@@ -16,11 +16,11 @@ function fail(message: string): never {
 
 function integerValue(value: string | undefined, name: string): number {
   if (value === undefined) {
-    fail(`missing value for ${name}`);
+    fail(`缺少 ${name} 的参数值`);
   }
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1) {
-    fail(`${name} expects a positive integer`);
+    fail(`${name} 需要正整数`);
   }
   return parsed;
 }
@@ -41,7 +41,7 @@ function parseArgv(argv: string[]): Options {
     } else if (arg === "--output" || arg === "-o") {
       const value = argv[++index];
       if (value === undefined) {
-        fail(`missing value for ${arg}`);
+        fail(`缺少 ${arg} 的参数值`);
       }
       options.output = value;
     } else if (arg.startsWith("--grid=")) {
@@ -51,16 +51,16 @@ function parseArgv(argv: string[]): Options {
     } else if (arg.startsWith("--output=")) {
       options.output = arg.slice("--output=".length);
     } else if (arg === "--help" || arg === "-h") {
-      console.error("usage: bun run scripts/pixel_diff.ts <original> <rebuilt> [--grid N] [--top N] [-o heatmap.png]");
+      console.error("用法: bun run scripts/pixel_diff.ts <原图> <重建图> [--grid N] [--top N] [-o 热力图.png]");
       process.exit(0);
     } else if (arg.startsWith("-") && arg !== "-") {
-      fail(`unknown option: ${arg}`);
+      fail(`未知选项: ${arg}`);
     } else {
       positional.push(arg);
     }
   }
   if (positional.length !== 2) {
-    fail("expected original and rebuilt image paths");
+    fail("需要提供原图和重建图两个路径");
   }
   options.original = positional[0];
   options.rebuilt = positional[1];
@@ -116,7 +116,7 @@ async function main(): Promise<void> {
     size: { width: original.width, height: original.height },
   });
   if (rawSize.width !== original.width || rawSize.height !== original.height) {
-    console.log(`note: rebuilt was ${rawSize.width}x${rawSize.height}, scaled to ${original.width}x${original.height}`);
+    console.log(`提示: 重建图原尺寸为 ${rawSize.width}x${rawSize.height}, 已缩放到 ${original.width}x${original.height}`);
   }
   const diff = difference(original.data, rebuilt.data);
   let graySum = 0;
@@ -124,12 +124,12 @@ async function main(): Promise<void> {
     graySum += grayAt(diff, index);
   }
   const overall = (graySum / original.width / original.height / 255) * 100;
-  console.log(`overall difference: ${overall.toFixed(2)}%`);
+  console.log(`整体差异: ${overall.toFixed(2)}%`);
   if (options.output) {
     await sharp(Buffer.from(diff), {
       raw: { width: original.width, height: original.height, channels: 3 },
     }).toFile(options.output);
-    console.log(`heatmap: ${options.output}`);
+    console.log(`热力图: ${options.output}`);
   }
   for (const [index, cell] of cellScores(diff, original.width, original.height, options.grid)
     .slice(0, options.top)

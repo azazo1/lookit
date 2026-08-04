@@ -7,7 +7,7 @@ export type RgbImage = { data: Uint8Array; width: number; height: number };
 export async function imageSize(path: string): Promise<{ width: number; height: number }> {
   const metadata = await sharp(path, { failOn: "none" }).metadata();
   if (!metadata.width || !metadata.height) {
-    throw new Error(`image has no dimensions: ${path}`);
+    throw new Error(`图片缺少尺寸信息: ${path}`);
   }
   return { width: metadata.width, height: metadata.height };
 }
@@ -46,7 +46,7 @@ export async function loadRgb(
 export function parseRegion(region: string, width: number, height: number): Box {
   const parts = region.split(",");
   if (parts.length !== 4 || parts.some((part) => !/^-?\d+$/.test(part))) {
-    throw new Error("--region expects four integers: X1,Y1,X2,Y2 (pixels)");
+    throw new Error("--region 需要四个整数: X1,Y1,X2,Y2 (像素)");
   }
   const [x1, y1, x2, y2] = parts.map(Number);
   const box = {
@@ -56,7 +56,7 @@ export function parseRegion(region: string, width: number, height: number): Box 
     y2: Math.min(height, Math.max(y1, y2)),
   };
   if (box.x2 <= box.x1 || box.y2 <= box.y1) {
-    throw new Error(`--region ${region} is empty after clamping to ${width}x${height}`);
+    throw new Error(`--region ${region} 裁剪后为空, 图片为 ${width}x${height}`);
   }
   return box;
 }
@@ -64,7 +64,7 @@ export function parseRegion(region: string, width: number, height: number): Box 
 export function parseHex(text: string): Rgb {
   const value = text.trim().replace(/^#/, "");
   if (!/^[0-9a-fA-F]{6}$/.test(value)) {
-    throw new Error(`invalid colour ${text}: expected #RRGGBB`);
+    throw new Error(`无效颜色 ${text}: 需要 #RRGGBB`);
   }
   return [
     Number.parseInt(value.slice(0, 2), 16),

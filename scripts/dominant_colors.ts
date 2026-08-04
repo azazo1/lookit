@@ -39,11 +39,11 @@ function fail(message: string): never {
 
 function integerValue(value: string | undefined, name: string): number {
   if (value === undefined) {
-    fail(`missing value for ${name}`);
+    fail(`缺少 ${name} 的参数值`);
   }
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1) {
-    fail(`${name} expects a positive integer`);
+    fail(`${name} 需要正整数`);
   }
   return parsed;
 }
@@ -95,17 +95,17 @@ function parseArgv(argv: string[]): Options {
       options.tol = integerValue(arg.slice("--tol=".length), "--tol");
     } else if (arg === "--help" || arg === "-h") {
       console.error(
-        "usage: bun run scripts/dominant_colors.ts <image> [--region X1,Y1,X2,Y2] [--candidates #RRGGBB,...] [--top N] [--quantize N] [--max-pixels N] [--merge-tol N] [--tol N]",
+        "用法: bun run scripts/dominant_colors.ts <图片> [--region X1,Y1,X2,Y2] [--candidates #RRGGBB,...] [--top N] [--quantize N] [--max-pixels N] [--merge-tol N] [--tol N]",
       );
       process.exit(0);
     } else if (arg.startsWith("-") && arg !== "-") {
-      fail(`unknown option: ${arg}`);
+      fail(`未知选项: ${arg}`);
     } else {
       positional.push(arg);
     }
   }
   if (positional.length !== 1) {
-    fail("expected one image path");
+    fail("需要提供一个图片路径");
   }
   options.image = positional[0];
   return options;
@@ -288,14 +288,14 @@ async function pick(
 function formatExtract(clusters: Cluster[], top: number, box: Box, mergeTol: number): string[] {
   const total = clusters.reduce((sum, cluster) => sum + cluster.count, 0);
   if (!total) {
-    return ["(region has no pixels)"];
+    return ["(区域没有像素)"];
   }
   const width = box.x2 - box.x1;
   const height = box.y2 - box.y1;
   const maxShare = Math.max(...clusters.map((cluster) => (cluster.count / total) * 100));
   const lines = [
-    `region ${box.x1},${box.y1},${box.x2},${box.y2} - ${width}x${height} px`,
-    `top ${top} of ${clusters.length} clusters (merged at distance <= ${mergeTol}):`,
+    `区域 ${box.x1},${box.y1},${box.x2},${box.y2} - ${width}x${height} 像素`,
+    `前 ${top} 个聚类, 共 ${clusters.length} 个 (距离 <= ${mergeTol} 时合并):`,
   ];
   for (const cluster of clusters.slice(0, top)) {
     const share = (cluster.count / total) * 100;
@@ -311,8 +311,8 @@ function formatPick(rows: PickRow[], winner: PickRow, closest: PickRow, box: Box
   const maxShare = Math.max(...rows.map((row) => row.share)) || 1;
   const maxWeighted = Math.max(...rows.map((row) => row.weighted));
   const lines = [
-    `region ${box.x1},${box.y1},${box.x2},${box.y2} - ${width}x${height} px (${total} px sampled)`,
-    "candidate   share   mean_d  wt    bar",
+    `区域 ${box.x1},${box.y1},${box.x2},${box.y2} - ${width}x${height} 像素 (采样 ${total} 像素)`,
+    "候选色    占比    平均距离  权重  条",
   ];
   for (const row of rows) {
     const mark = row === winner ? "*" : " ";
@@ -326,14 +326,14 @@ function formatPick(rows: PickRow[], winner: PickRow, closest: PickRow, box: Box
   }
   if (!winner.hard) {
     lines.push(
-      `note: no candidate is within distance <= ${tol} of the region; ` +
-        `closest by mean distance is ${closest.text}`,
+      `提示: 没有候选色与区域的距离 <= ${tol}; ` +
+        `平均距离最近的是 ${closest.text}`,
     );
   } else {
     lines.push(
-      `winner: ${winner.text} (* in table) - wt is soft-match closeness, ` +
-        `so the winner need not have the highest share; ` +
-        `${winner.share.toFixed(1)}% of region pixels within distance <= ${tol}`,
+      `胜出: ${winner.text} (表中标记为 *) - 权重表示软匹配接近度, ` +
+        `所以胜者不必占比最高; ` +
+        `区域内 ${winner.share.toFixed(1)}% 像素与它的距离 <= ${tol}`,
     );
   }
   return lines;
@@ -342,7 +342,7 @@ function formatPick(rows: PickRow[], winner: PickRow, closest: PickRow, box: Box
 async function main(): Promise<void> {
   const options = parseArgv(process.argv.slice(2));
   if (!existsSync(options.image)) {
-    fail(`image not found: ${options.image}`);
+    fail(`图片不存在: ${options.image}`);
   }
   const { width, height } = await imageSize(options.image);
   const box = options.region ? parseRegion(options.region, width, height) : { x1: 0, y1: 0, x2: width, y2: height };
@@ -352,7 +352,7 @@ async function main(): Promise<void> {
       .map((candidate) => candidate.trim())
       .filter(Boolean);
     if (!candidates.length) {
-      fail("--candidates needs at least one #RRGGBB");
+      fail("--candidates 至少需要一个 #RRGGBB");
     }
     const { rows, winner, closest } = await pick(options.image, box, candidates, options.tol);
     console.log(formatPick(rows, winner, closest, box, options.tol).join("\n"));

@@ -1,4 +1,4 @@
 interface:
   display_name: "lookit"
-  short_description: "Ask about, OCR, locate, inventory, and vectorize images with lookit CLIs"
-  default_prompt: "Use $lookit to look at this image with glance, ground, detect, or trace."
+  short_description: "使用 glance, ground, detect, trace 对图片进行描述, OCR, 定位, 盘点和矢量还原"
+  default_prompt: "使用 $lookit 查看这张图片, 可调用 glance, ground, detect 或 trace."

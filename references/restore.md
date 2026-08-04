@@ -1,126 +1,65 @@
-# Rebuilding UI or graphics from an image
+# 根据图片重建 UI 或图形
 
-**When to use**: the task is reproducing what an image shows — a page as
-HTML, an icon or diagram as SVG, a visual component lifted out for reuse.
-Not for answering questions about an image; that is `glance` alone.
+**何时使用**: 任务是复现图片展示的内容, 比如把页面还原成 HTML, 把图标或示意图还原成 SVG, 或提取可复用的视觉组件. 不用于回答图片问题, 那只需要 `glance`.
 
-Tool syntax lives in `SKILL.md`. This file is the sequence and the
-pass/fail test.
+工具语法在 `SKILL.md`. 本文件给出完整执行顺序和通过/失败判断.
 
-## Steps
+## 步骤
 
-**1. Inventory in one pass, then refine by region.**
+**1. 先一次盘点, 再按区域细化.**
 
-One full-screen `detect` call gives the element list. Do not build that
-list element by element with single-target calls — that spends one vision
-call per element for what one call returns. A full-screen pass
-under-reports on dense screens, so treat it as the scaffold:
-`detect --region` each layout block for a complete local list, then zoom
-with `glance --region` and sample colors with `scripts/dominant_colors.ts`.
+一次全屏 `detect` 调用得到元素清单. 不要用单个目标调用逐个收集元素, 那样每个元素消耗一次视觉调用, 而一次调用本来就能返回. 全屏扫描在密集页面会漏报, 把它当作脚手架: 对每个布局区块执行 `detect --region` 得到完整局部清单, 再用 `glance --region` 放大, 用 `scripts/dominant_colors.ts` 采样颜色.
 
-**2. Take every number from pixels, never from prose.**
+**2. 所有数字来自像素, 不要来自散文.**
 
-Exact colors, offsets, and sizes are where vision models are confidently
-wrong. Sample them with code, or read them off a `trace` — its coordinates
-come from the actual pixels.
+精确颜色, 偏移和大小正是视觉模型最容易自信出错的地方. 用代码采样, 或从 `trace` 读取; 它的坐标来自真实像素.
 
-**3. For each shape, decide: ship the trace, or measure from it.**
+**3. 每个形状先决定: 直接交付 trace, 还是只拿它做测量参考.**
 
-Ship the traced SVG as-is for organic or irregular shapes — hand-written
-approximations of organic curves lose fidelity. For simple geometry
-(rects, circles, pills) or SVG that will be edited later, use the trace as
-a measurement reference instead: read exact positions, sizes, and radii
-from its paths, then hand-write clean primitives from them.
+有机或不规则形状直接交付追踪出的 SVG, 手写近似会损失细节. 简单几何 (矩形, 圆形, 圆角块) 或之后还要编辑的 SVG, 把 trace 当作测量参考: 从路径读取精确位置, 大小和半径, 再手写干净的基础图形.
 
-- **Icon / logo / line-art to SVG**: `trace --region <ground box> -o icon.svg`.
-- **Diagram / flowchart / wireframe structure**: `--polygon` yields each box
-  and arrow as a compact path with exact position and size — layout
-  relations become readable text.
-- **Measuring elements**: parse the traced paths (or skip SVG and compute
-  on pixels directly) rather than asking `glance` for numbers.
+- **图标/Logo/线条图转 SVG**: `trace --region <ground 框> -o icon.svg`.
+- **示意图/流程图/线框图结构**: `--polygon` 会把每个框和箭头变成紧凑路径, 并保留精确位置和大小; 布局关系变成可读文本.
+- **测量元素**: 解析追踪路径 (或跳过 SVG 直接在像素上计算), 不要问 `glance` 要数字.
 
-A small icon is a hand-write case, not a no-trace case. A 15-30px stroke
-icon is too coarse to ship as a traced outline — the trace returns the
-ribbon around the stroke, not its centerline — so the deliverable is a
-hand-written `<path stroke=... fill=none>`. Draw it from the trace anyway:
-`trace <icon> --polygon` upscales the image for you and returns a handful
-of polygon paths whose vertices give every endpoint, corner and stroke
-width in pixels. Reading structure off a printed pixel grid instead is
-guessing dressed as data — you are eyeballing the same shape with less
-precision and no coordinates.
+小图标属于手写案例, 不是"不 trace"的案例. 15-30px 的描边图标太粗, 不能直接交付追踪轮廓, 因为 trace 返回的是描边周围的带状路径而不是中线; 最终产物应手写 `<path stroke=... fill=none>`. 但仍要基于 trace 来画: `trace <icon> --polygon` 会自动放大图片, 返回若干多边形路径, 其顶点给出每个端点, 角点和以像素为单位的描边宽度. 改看打印出来的像素网格等于在猜, 那是低精度又无坐标的数据.
 
-Two traps when reusing traced paths:
+复用追踪路径时有两个陷阱:
 
-- The SVG has a **transparent background** — composite on white before any
-  pixel diff or visual check (`rsvg-convert -b white`); transparency reads
-  as black in many viewers and gets misdiagnosed as a broken trace.
-- Every `<path>` carries a `transform` attribute. When lifting a path into
-  another SVG, **copy the transform together with `d`** — holes are
-  opposite-winding subpaths and survive standalone extraction, but a
-  dropped transform displaces the shape.
+- SVG 是透明背景; 在做像素差异或视觉检查前先合成白色背景 (`rsvg-convert -b white`); 很多查看器会把透明当黑色, 并误判为 trace 失败.
+- 每个 `<path>` 都带 `transform` 属性. 把路径迁移到另一个 SVG 时, 必须连同 `d` 一起复制 `transform`; 孔洞是反向绕向的子路径, 单独提取没问题, 但丢掉 transform 会移动图形.
 
-**4. Pick every colour from pixels; the model only names it.**
+**4. 颜色值从像素取, 模型只负责命名.**
 
-`glance` can tell you a region reads as "light gray", but not whether that is
-`#F9FAFA`, `#F5F5F5`, or `#EDEDED` — and a rebuilt page that uses the wrong
-gray is visibly off even though both are "light gray". Work colour in three
-moves:
+`glance` 能告诉你某区域看起来是 "浅灰", 但不能确定是 `#F9FAFA`, `#F5F5F5` 还是 `#EDEDED`; 重建页面用错灰色会明显不对, 即使两者都叫 "浅灰". 分三步处理颜色:
 
-1. `glance <image> --region <box> -q "name the colours in this region"` —
-   prose labels only. This step names the clusters; it does not measure them.
-2. `bun run scripts/dominant_colors.ts <image> --region <box>` — downsample,
-   quantize, merge near-duplicates, and print the top colour clusters with the
-   share each owns. The histogram is the role map: the biggest share is
-   usually the background, smaller shares the accents.
-3. Map each label to the candidate palette it implies, then let the pixels
-   choose:
+1. `glance <image> --region <box> -q "描述这个区域的颜色名称"` - 只拿文字标签; 这一步命名聚类, 不测量.
+2. `bun run scripts/dominant_colors.ts <image> --region <box>` - 降采样, 量化并合并相近颜色, 输出主要颜色聚类及占比. 直方图是角色图: 占比最大通常是背景, 较小的是强调色.
+3. 把每个标签映射到候选调色板, 再让像素选择:
    `bun run scripts/dominant_colors.ts <image> --region <box> --candidates '#F9FAFA,#F5F5F5,#F3F3F3,#EDEDED'`
-   — each candidate is scored by a distance filter over the region's pixels
-   and the best one wins. Use that hex in the rebuild.
+   每个候选色按区域像素距离打分, 最接近者胜出. 重建时使用该十六进制色值.
 
-The rule from step 2 still holds: the label comes from the model, the value
-from the pixels.
+第 2 步规则仍然成立: 标签来自模型, 色值来自像素.
 
-## Verify
+## 验证
 
-Render what you built (Playwright for HTML, rsvg-convert for SVG), then:
+渲染出产物 (HTML 用 Playwright, SVG 用 rsvg-convert), 然后:
 
 ```bash
-bun run scripts/pixel_diff.ts <original.png> <rendered.png>
+bun run scripts/pixel_diff.ts <原始图.png> <渲染结果.png>
 ```
 
-It prints an overall difference percentage and the worst regions as
-`x1: .., y1: ..` boxes — the same form `glance --region` and
-`detect --region` take, so the top offender goes straight back into a zoom
-call. Fix the largest diff, re-render, re-run; the number should drop each
-round.
+它会输出整体差异百分比, 以及最严重区域的 `x1: .., y1: ..` 框; 这些框的格式和 `glance --region`, `detect --region` 相同, 所以最严重的区域可以直接交给放大调用. 修复最大差异, 重新渲染, 重新运行; 数字应逐轮下降.
 
-Two rules about reading that output, both about not stopping early:
+阅读输出有两条规则, 都关于不要过早停止:
 
-- **A low percentage does not mean a single defect.** The ranking is where
-  to start looking, not the list of what is wrong. One cell can hold two
-  faults at once — a wrong fill colour is loud enough to hide a position
-  shift underneath it. Having explained the top region, check whether it
-  also moved, resized, or changed shape, and keep working down the
-  remaining ranked regions until they come back clean.
-- **Never conclude from a description comparison.** Your prose description
-  of the original against your prose description of the rebuild tells you
-  nothing — both came from the same model, so its blind spots cancel out
-  instead of showing up.
+- **低百分比不代表只有一个缺陷.** 排序只是从哪里开始看的起点, 不是错误清单. 一个单元格可能同时存在两个问题: 错误填充色很抢眼, 可能掩盖底下的位置偏移. 解释完最严重区域后, 还要检查它是否移动, 缩放或改变形状, 并继续处理后续排名区域直到全部干净.
+- **永远不要用描述对比下结论.** 你对原始图的散文描述与对重建图的散文描述相比毫无意义, 两者来自同一个模型, 盲区会互相抵消而不是暴露出来.
 
-The script composites transparency on white for you — but if you diff by
-hand for any reason, do it yourself.
+脚本会自动把透明合成到白色背景; 如果出于某种原因手动比较, 要自己处理透明.
 
-## Boundaries
+## 边界
 
-Whole screenshots and photos do not trace usefully. Low-contrast art
-(watermarks, faint patterns) binarizes away and the trace picks up the
-high-contrast content around it instead.
+整张截图和照片不适合 trace. 低对比图形 (水印, 浅色图案) 会被二值化掉, trace 反而会拾取周围的高对比内容.
 
-A "0 paths" result means the region binarized to nothing, and it is
-recoverable — in order: raise `--scale`, tighten `--region` around the
-shape, or pre-invert a light-on-dark image. Reach for `--color` last and
-only for genuinely multi-colour art: on anti-aliased input it gives every
-grey level its own cluster, so a single icon comes back as dozens of
-fragment paths. That output looks like proof the tool cannot handle the
-shape, and it is really just the wrong flag.
+"0 paths" 表示该区域二值化后没有内容, 可以恢复: 依次调高 `--scale`, 收紧 `--region`, 或对浅色背景深色图形先反色. `--color` 最后才用, 而且只用于真正多色图形; 在抗锯齿输入上它会给每个灰度级别单独聚类, 单个图标会变成几十个碎片路径. 这种输出看起来像工具不行, 其实只是用错了参数.
