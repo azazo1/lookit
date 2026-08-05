@@ -7,6 +7,7 @@
     "ground": "bun run scripts/ground.ts",
     "detect": "bun run scripts/detect.ts",
     "trace": "bun run scripts/trace.ts",
+    "model-svg": "bun run scripts/model_svg.ts",
     "dominant-colors": "bun run scripts/dominant_colors.ts",
     "pixel-diff": "bun run scripts/pixel_diff.ts",
     "ascii": "bun run scripts/ascii.ts"

@@ -1,4 +1,4 @@
 interface:
   display_name: "lookit"
-  short_description: "给无视觉能力模型提供图片描述, OCR, 定位, 盘点, 矢量还原和 ASCII 像素预览能力 (glance, ground, detect, trace, ascii)"
-  default_prompt: "使用 $lookit 查看这张图片, 可调用 glance, ground, detect, trace 或 ascii."
+  short_description: "图片描述, OCR, 定位, 模型 SVG 还原与像素分析"
+  default_prompt: "使用 $lookit 查看或还原这张图片, 可调用 glance, ground, detect, trace, model-svg 或 ascii."

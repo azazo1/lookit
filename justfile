@@ -17,11 +17,12 @@ deps:
 # just check
 # 编译全部 CLI 并检查帮助信息.
 check:
-    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/dominant_colors.ts scripts/pixel_diff.ts scripts/ascii.ts --outdir /tmp/lookit-build
+    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/model_svg.ts scripts/dominant_colors.ts scripts/pixel_diff.ts scripts/ascii.ts --outdir /tmp/lookit-build
     bun run scripts/glance.ts --help
     bun run scripts/ground.ts --help
     bun run scripts/detect.ts --help
     bun run scripts/trace.ts --help
+    bun run scripts/model_svg.ts --help
     bun run scripts/dominant_colors.ts --help
     bun run scripts/pixel_diff.ts --help
     bun run scripts/ascii.ts --help
@@ -29,7 +30,7 @@ check:
 # just build
 # 编译全部 CLI 到 /tmp/lookit-build.
 build:
-    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/dominant_colors.ts scripts/pixel_diff.ts scripts/ascii.ts --outdir /tmp/lookit-build
+    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/model_svg.ts scripts/dominant_colors.ts scripts/pixel_diff.ts scripts/ascii.ts --outdir /tmp/lookit-build
 
 # just glance <图片> [参数]
 # 使用 glance 描述/提问/OCR 图片.
@@ -50,6 +51,11 @@ detect *args:
 # 使用 trace 把图片转为 SVG 几何.
 trace *args:
     @bun run scripts/trace.ts {{args}}
+
+# just model-svg <图片> [-o 输出.svg] [--region ...]
+# 让视觉模型直接生成可编辑 SVG.
+model-svg *args:
+    @bun run scripts/model_svg.ts {{args}}
 
 # just dominant-colors <图片> [--region ...]
 # 使用 dominant_colors 提取区域主色.

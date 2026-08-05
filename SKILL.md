@@ -1,13 +1,13 @@
 ---
 name: lookit
-description: 给无视觉能力模型提供的本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片), ground (定位目标并输出像素框), detect (盘点元素), trace (把图片转为 SVG 几何), dominant_colors, pixel_diff 和 ascii (图片转 ASCII 像素网格). 适用于图片问答, 文字提取, 元素定位, 图片对比, HTML/SVG 还原等需要看图的场景.
+description: 给无视觉能力模型提供的本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片), ground (定位目标并输出像素框), detect (盘点元素), trace (本地把图片转为 SVG 几何), model-svg (让视觉模型直接生成 SVG), dominant_colors, pixel_diff 和 ascii (图片转 ASCII 像素网格). 适用于图片问答, 文字提取, 元素定位, 图片对比, HTML/SVG 还原等需要看图的场景.
 ---
 
 # lookit
 
-七个本地 CLI 让纯文本 agent 拥有看图能力. 它们共享同一份视觉配置 (`LOOKIT_API_KEY` / `LOOKIT_BASE_URL` / `LOOKIT_MODEL` / `LOOKIT_LANG`), 不需要额外凭证.
+八个本地 CLI 让纯文本 agent 拥有看图能力. 它们共享同一份视觉配置 (`LOOKIT_API_KEY` / `LOOKIT_BASE_URL` / `LOOKIT_MODEL` / `LOOKIT_LANG`), 不需要额外凭证.
 
-本文中的 `glance`, `ground`, `detect`, `trace`, `dominant_colors`, `pixel_diff`, `ascii` 分别是 `bun run scripts/glance.ts`, `bun run scripts/ground.ts`, `bun run scripts/detect.ts`, `bun run scripts/trace.ts`, `bun run scripts/dominant_colors.ts`, `bun run scripts/pixel_diff.ts`, `bun run scripts/ascii.ts` 的缩写.
+本文中的 `glance`, `ground`, `detect`, `trace`, `model-svg`, `dominant_colors`, `pixel_diff`, `ascii` 分别是 `bun run scripts/glance.ts`, `bun run scripts/ground.ts`, `bun run scripts/detect.ts`, `bun run scripts/trace.ts`, `bun run scripts/model_svg.ts`, `bun run scripts/dominant_colors.ts`, `bun run scripts/pixel_diff.ts`, `bun run scripts/ascii.ts` 的缩写.
 
 默认配置从 `~/.config/lookit/config.toml` 读取, 可用 `LOOKIT_CONFIG` 指定其他 TOML 文件; 顶层字段为 `version`, `api_key`, `base_url`, `model`, `lang`; 也支持直接使用 `LOOKIT_API_KEY` 等环境变量覆盖.
 
@@ -19,6 +19,7 @@ description: 给无视觉能力模型提供的本地视觉 CLI 工具集, 提供
 | X 在哪里? (能描述出具体对象) | `ground` |
 | 有哪些 X? (某一类对象的全部实例) | `detect` |
 | 精确形状/大小/偏移是什么? | `trace` |
+| 让视觉模型直接生成可编辑 SVG 草稿? | `model-svg` |
 | 区域内有哪些主色, 候选色中哪个最接近? | `dominant_colors` |
 | 这些工具没有返回的数字, 比如颜色值或两个元素之间的距离 | `pixel_diff` |
 | 图片的粗略像素结构或逐像素字符对比是什么? | `ascii` |
@@ -85,6 +86,16 @@ trace <image> --region X1,Y1,X2,Y2 -o out.svg  # 先裁剪再追踪
 
 坐标来自真实像素而不是模型估计. 只适用于平坦高对比图形; 文字会变成曲线 (文字重要时配合 `--ocr`). 小图会自动放大后再追踪, 大小不是跳过工具的理由. 但 trace 记录的是栅格化后的像素边界, 不是原始设计的矢量几何. 重建小图标或简单几何时只把它当测量参考, 不要为了降低 `pixel_diff` 把锯齿或抗锯齿轮廓写进 SVG. 交付前阅读 `references/restore.md`.
 
+## model-svg - 让视觉模型直接生成 SVG (调用视觉 API)
+
+```bash
+model-svg <image> -o out.svg                       # 生成并校验 SVG
+model-svg <image> --region X1,Y1,X2,Y2 -o out.svg  # 只重建指定区域
+model-svg <image> --instruction "..." -o out.svg  # 添加形状或风格要求
+```
+
+该命令要求模型只返回一个 SVG 文档, 自动去除代码围栏并校验标签结构, `viewBox`/尺寸, 脚本和外部资源. 它生成的是可编辑草稿, 仍需按 `references/restore.md` 渲染, 检查和人工整理; 不要把模型输出或 `pixel_diff` 结果直接当作最终质量判定.
+
 ## ascii - 图片转 ASCII 像素网格 (本地处理, 不调用视觉 API)
 
 ```bash
@@ -114,7 +125,7 @@ dominant_colors <image> --region X1,Y1,X2,Y2 \
   --candidates '#F9FAFA,#F5F5F5,#F3F3F3,#EDEDED'      # 从候选色中选最接近值
 ```
 
-所有 CLI 需要 Bun 和 `sharp` 包; `glance/ground/detect` 还需要视觉 API. 安装本 skill 后, 在 skill 目录里执行一次 `bun install`.
+所有 CLI 需要 Bun 和 `sharp` 包; `glance/ground/detect/model-svg` 还需要视觉 API. 安装本 skill 后, 在 skill 目录里执行一次 `bun install`.
 
 视觉模型能说出颜色名称 (比如 "浅灰"), 但不能给出具体色值. 第一种模式降采样, 量化和合并相近颜色, 输出区域主要颜色及各自占比; 直方图显示哪个是背景, 哪个是强调色. 给定标签对应的候选调色板后, 第二种模式按区域像素与每个候选色的接近程度打分并输出胜者. 色值从这里取, 不要从 `glance` 的散文描述里取. 路径相对本 skill 自己的目录.
 
