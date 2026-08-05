@@ -59,9 +59,6 @@ function parseArgv(argv: string[]): Options {
   if (options.query !== undefined && options.ocr !== undefined) {
     fail("-q/--query 和 --ocr 不能同时使用");
   }
-  if (options.region && options.images.length > 1) {
-    fail("--region 只能配合一张图片使用");
-  }
   return options;
 }
 
@@ -88,8 +85,9 @@ function buildPrompt(query: string | undefined, ocr: string | undefined, count: 
 
 async function main(): Promise<void> {
   const options = parseArgv(process.argv.slice(2));
-  const urls = options.region
-    ? [await cropToDataUrl(options.images[0], options.region)]
+  const region = options.region;
+  const urls = region
+    ? await Promise.all(options.images.map((path) => cropToDataUrl(path, region)))
     : await Promise.all(options.images.map((path) => imagePathToDataUrl(path)));
   const answer = await describeImage(
     urls,

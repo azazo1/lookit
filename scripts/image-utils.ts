@@ -67,6 +67,18 @@ export async function loadRgba(
   return { data, width: info.width, height: info.height };
 }
 
+export function cropRgb(image: RgbImage, box: Box): RgbImage {
+  const width = box.x2 - box.x1;
+  const height = box.y2 - box.y1;
+  const data = new Uint8Array(width * height * 3);
+  for (let y = 0; y < height; y++) {
+    const sourceStart = ((box.y1 + y) * image.width + box.x1) * 3;
+    const sourceEnd = ((box.y1 + y) * image.width + box.x2) * 3;
+    data.set(image.data.subarray(sourceStart, sourceEnd), y * width * 3);
+  }
+  return { data, width, height };
+}
+
 export function parseRegion(region: string, width: number, height: number): Box {
   const parts = region.split(",");
   if (parts.length !== 4 || parts.some((part) => !/^-?\d+$/.test(part))) {
