@@ -8,7 +8,8 @@
     "detect": "bun run scripts/detect.ts",
     "trace": "bun run scripts/trace.ts",
     "dominant-colors": "bun run scripts/dominant_colors.ts",
-    "pixel-diff": "bun run scripts/pixel_diff.ts"
+    "pixel-diff": "bun run scripts/pixel_diff.ts",
+    "ascii": "bun run scripts/ascii.ts"
   },
   "dependencies": {
     "@visioncortex/vtracer": "^1.0.0-alpha.3",

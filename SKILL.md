@@ -1,13 +1,13 @@
 ---
 name: lookit
-description: 给无视觉能力模型提供的本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片), ground (定位目标并输出像素框), detect (盘点元素), trace (把图片转为 SVG 几何), 以及 dominant_colors 和 pixel_diff. 适用于图片问答, 文字提取, 元素定位, 图片对比, HTML/SVG 还原等需要看图的场景.
+description: 给无视觉能力模型提供的本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片), ground (定位目标并输出像素框), detect (盘点元素), trace (把图片转为 SVG 几何), dominant_colors, pixel_diff 和 ascii (图片转 ASCII 像素网格). 适用于图片问答, 文字提取, 元素定位, 图片对比, HTML/SVG 还原等需要看图的场景.
 ---
 
 # lookit
 
-四个本地 CLI 让纯文本 agent 拥有看图能力. 它们共享同一份视觉配置 (`LOOKIT_API_KEY` / `LOOKIT_BASE_URL` / `LOOKIT_MODEL` / `LOOKIT_LANG`), 不需要额外凭证.
+七个本地 CLI 让纯文本 agent 拥有看图能力. 它们共享同一份视觉配置 (`LOOKIT_API_KEY` / `LOOKIT_BASE_URL` / `LOOKIT_MODEL` / `LOOKIT_LANG`), 不需要额外凭证.
 
-本文中的 `glance`, `ground`, `detect`, `trace`, `dominant_colors`, `pixel_diff` 分别是 `bun run scripts/glance.ts`, `bun run scripts/ground.ts`, `bun run scripts/detect.ts`, `bun run scripts/trace.ts`, `bun run scripts/dominant_colors.ts`, `bun run scripts/pixel_diff.ts` 的缩写.
+本文中的 `glance`, `ground`, `detect`, `trace`, `dominant_colors`, `pixel_diff`, `ascii` 分别是 `bun run scripts/glance.ts`, `bun run scripts/ground.ts`, `bun run scripts/detect.ts`, `bun run scripts/trace.ts`, `bun run scripts/dominant_colors.ts`, `bun run scripts/pixel_diff.ts`, `bun run scripts/ascii.ts` 的缩写.
 
 默认配置从 `~/.config/lookit/config.toml` 读取, 可用 `LOOKIT_CONFIG` 指定其他 TOML 文件; 顶层字段为 `version`, `api_key`, `base_url`, `model`, `lang`; 也支持直接使用 `LOOKIT_API_KEY` 等环境变量覆盖.
 
@@ -21,6 +21,7 @@ description: 给无视觉能力模型提供的本地视觉 CLI 工具集, 提供
 | 精确形状/大小/偏移是什么? | `trace` |
 | 区域内有哪些主色, 候选色中哪个最接近? | `dominant_colors` |
 | 这些工具没有返回的数字, 比如颜色值或两个元素之间的距离 | `pixel_diff` |
+| 图片的粗略像素结构或逐像素字符对比是什么? | `ascii` |
 
 `glance` 回答"是什么", `ground` 和 `detect` 回答"在哪里". `ground` 接收一个具体对象的描述, `detect` 接收一个类别并枚举实例.
 
@@ -82,6 +83,17 @@ trace <image> --region X1,Y1,X2,Y2 -o out.svg  # 先裁剪再追踪
 ```
 
 坐标来自真实像素而不是模型估计. 只适用于平坦高对比图形; 文字会变成曲线 (文字重要时配合 `--ocr`). 小图会自动放大后再追踪, 30px 图标和截图一样可以处理, 大小不是跳过工具的理由. 在交付或复用追踪出的 SVG 前, 阅读 `references/restore.md`, 里面有复用陷阱和直接交付与手写重绘的判断.
+
+## ascii - 图片转 ASCII 像素网格 (本地处理, 不调用视觉 API)
+
+```bash
+ascii <image>                              # 输出字符网格
+ascii <image> --width 40 --height 40       # 指定网格大小
+ascii <image> --region X1,Y1,X2,Y2         # 先裁剪再转换
+ascii <img1> <img2>                        # 两张图逐像素并排对比
+```
+
+默认输出不缩放 64x64 以内的图片, 更大图片自动缩到 64x64 以内; 可用 `--width`/`--height` 覆盖. 判断规则和临时脚本一致: alpha 大于 0 且红色通道超过 `--threshold` (默认 80) 的像素显示为 `#`, 否则为 `.`. 这个输出只用于粗略结构预览, 坐标和尺寸仍从 `trace` 获取.
 
 ## pixel_diff - 两张图哪里不同 (本地处理, 不调用视觉 API)
 

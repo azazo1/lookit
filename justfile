@@ -17,18 +17,19 @@ deps:
 # just check
 # 编译全部 CLI 并检查帮助信息.
 check:
-    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/dominant_colors.ts scripts/pixel_diff.ts --outdir /tmp/lookit-build
+    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/dominant_colors.ts scripts/pixel_diff.ts scripts/ascii.ts --outdir /tmp/lookit-build
     bun run scripts/glance.ts --help
     bun run scripts/ground.ts --help
     bun run scripts/detect.ts --help
     bun run scripts/trace.ts --help
     bun run scripts/dominant_colors.ts --help
     bun run scripts/pixel_diff.ts --help
+    bun run scripts/ascii.ts --help
 
 # just build
 # 编译全部 CLI 到 /tmp/lookit-build.
 build:
-    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/dominant_colors.ts scripts/pixel_diff.ts --outdir /tmp/lookit-build
+    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/dominant_colors.ts scripts/pixel_diff.ts scripts/ascii.ts --outdir /tmp/lookit-build
 
 # just glance <图片> [参数]
 # 使用 glance 描述/提问/OCR 图片.
@@ -59,3 +60,8 @@ dominant-colors *args:
 # 使用 pixel_diff 比较两张图片的像素差异.
 pixel-diff *args:
     @bun run scripts/pixel_diff.ts {{args}}
+
+# just ascii <图片> [<对比图片>] [--width N] [--height N]
+# 使用 ascii 把图片输出为 ASCII 像素网格, 传入两张图时并排比较.
+ascii *args:
+    @bun run scripts/ascii.ts {{args}}

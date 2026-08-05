@@ -3,6 +3,7 @@ import sharp from "sharp";
 export type Rgb = readonly [number, number, number];
 export type Box = { x1: number; y1: number; x2: number; y2: number };
 export type RgbImage = { data: Uint8Array; width: number; height: number };
+export type RgbaImage = RgbImage;
 
 export async function imageSize(path: string): Promise<{ width: number; height: number }> {
   const metadata = await sharp(path, { failOn: "none" }).metadata();
@@ -41,6 +42,29 @@ export async function loadRgb(
     pixels[index * 3 + 2] = Math.round(data[index * 4 + 2] * alpha + background);
   }
   return { data: pixels, width: info.width, height: info.height };
+}
+
+export async function loadRgba(
+  path: string,
+  options: { region?: Box; size?: { width: number; height: number } } = {},
+): Promise<RgbaImage> {
+  let pipeline = sharp(path, { failOn: "none" }).ensureAlpha();
+  if (options.region) {
+    pipeline = pipeline.extract({
+      left: options.region.x1,
+      top: options.region.y1,
+      width: options.region.x2 - options.region.x1,
+      height: options.region.y2 - options.region.y1,
+    });
+  }
+  if (options.size) {
+    pipeline = pipeline.resize(options.size.width, options.size.height, {
+      fit: "fill",
+      kernel: sharp.kernel.lanczos3,
+    });
+  }
+  const { data, info } = await pipeline.raw().toBuffer({ resolveWithObject: true });
+  return { data, width: info.width, height: info.height };
 }
 
 export function parseRegion(region: string, width: number, height: number): Box {
