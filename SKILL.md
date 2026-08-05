@@ -9,6 +9,17 @@ description: 给无视觉能力模型提供的本地视觉 CLI 工具集, 提供
 
 本文中的 `glance`, `ground`, `detect`, `trace`, `model-svg`, `dominant_colors`, `pixel_diff`, `ascii` 分别是 `bun run scripts/glance.ts`, `bun run scripts/ground.ts`, `bun run scripts/detect.ts`, `bun run scripts/trace.ts`, `bun run scripts/model_svg.ts`, `bun run scripts/dominant_colors.ts`, `bun run scripts/pixel_diff.ts`, `bun run scripts/ascii.ts` 的缩写.
 
+## CLI 执行目录
+
+所有 CLI 都必须在本 skill 根目录执行. 根目录就是包含本 `SKILL.md` 的目录, 不要假设它固定安装在某个绝对路径. 调用 `exec_command` 时, 将工具参数 `workdir` 设置为该目录, 在 `cmd` 中使用相对脚本路径. 如果其他终端工具把同一参数命名为 `currentDir`, 再使用它的对应字段:
+
+```text
+workdir: "/path/to/lookit"
+cmd: "bun run scripts/glance.ts image.png -q \"...\""
+```
+
+不要把脚本写成 `/path/to/lookit/scripts/...` 的绝对路径. 图片路径可以继续使用绝对路径, 临时图片先按下方说明复制到 `work/`.
+
 默认配置从 `~/.config/lookit/config.toml` 读取, 可用 `LOOKIT_CONFIG` 指定其他 TOML 文件; 顶层字段为 `version`, `api_key`, `base_url`, `model`, `lang`; 也支持直接使用 `LOOKIT_API_KEY` 等环境变量覆盖.
 
 根据要回答的问题选择工具:
