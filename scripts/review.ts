@@ -347,6 +347,30 @@ async function main(): Promise<void> {
     resolveOutcome = resolve;
   });
 
+  let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+  let deadline: number | undefined;
+  let timeoutSeconds = options.timeoutSeconds;
+
+  const clearTimeoutTimer = (): void => {
+    if (timeoutTimer) {
+      clearTimeout(timeoutTimer);
+      timeoutTimer = undefined;
+    }
+  };
+
+  const scheduleTimeout = (seconds: number): void => {
+    timeoutSeconds = Math.max(0, Math.floor(seconds));
+    clearTimeoutTimer();
+    if (timeoutSeconds === 0) {
+      deadline = undefined;
+      return;
+    }
+    deadline = Date.now() + timeoutSeconds * 1000;
+    timeoutTimer = setTimeout(() => resolveOutcome({ type: "timeout" }), timeoutSeconds * 1000);
+  };
+
+  scheduleTimeout(options.timeoutSeconds);
+
   const server = Bun.serve({
     hostname: options.host,
     port: options.port,
@@ -376,6 +400,8 @@ async function main(): Promise<void> {
           task: options.task,
           labels: options.labels,
           images: metas,
+          timeoutSeconds,
+          deadline: deadline ? new Date(deadline).toISOString() : null,
         });
       }
 
@@ -407,6 +433,28 @@ async function main(): Promise<void> {
         }
       }
 
+      if (url.pathname === "/api/extend" && request.method === "POST") {
+        try {
+          const body: unknown = await request.json();
+          const requested = Number(asRecord(body).seconds);
+          const extra = Number.isFinite(requested)
+            ? Math.max(30, Math.min(3600, Math.floor(requested)))
+            : 300;
+          const remaining = deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000)) : 0;
+          scheduleTimeout(remaining + extra);
+          return Response.json({
+            ok: true,
+            timeoutSeconds,
+            deadline: new Date(deadline as number).toISOString(),
+          });
+        } catch (error) {
+          return Response.json(
+            { ok: false, error: error instanceof Error ? error.message : String(error) },
+            { status: 400 },
+          );
+        }
+      }
+
       if (url.pathname === "/api/cancel" && request.method === "POST") {
         setTimeout(() => resolveOutcome({ type: "cancel" }), 0);
         return Response.json({ ok: true });
@@ -416,11 +464,6 @@ async function main(): Promise<void> {
     },
   });
 
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  if (options.timeoutSeconds > 0) {
-    timer = setTimeout(() => resolveOutcome({ type: "timeout" }), options.timeoutSeconds * 1000);
-  }
-
   console.log(`服务监听: http://${options.host}:${server.port}`);
   const pageUrl = `http://${displayHost(options.host)}:${server.port}/?token=${encodeURIComponent(token)}`;
   console.log(`审查页面: ${pageUrl}`);
@@ -428,12 +471,10 @@ async function main(): Promise<void> {
     openBrowser(pageUrl);
     console.log("已尝试打开浏览器");
   }
-  console.log(`等待人工审查, 超时 ${options.timeoutSeconds} 秒`);
+  console.log(`等待人工审查, 超时 ${timeoutSeconds} 秒`);
 
   const outcome = await outcomePromise;
-  if (timer) {
-    clearTimeout(timer);
-  }
+  clearTimeoutTimer();
   await new Promise((resolve) => setTimeout(resolve, 100));
   server.stop(true);
 
@@ -441,7 +482,7 @@ async function main(): Promise<void> {
     fail("用户已取消审查");
   }
   if (outcome.type === "timeout") {
-    fail(`等待人工审查超时 (${options.timeoutSeconds} 秒), 未获得注解`);
+    fail(`等待人工审查超时 (${timeoutSeconds} 秒), 未获得注解`);
   }
 
   if (options.output) {

@@ -110,6 +110,20 @@ header {
 .actions {
   display: flex;
   gap: 10px;
+  align-items: center;
+}
+
+.countdown {
+  min-width: 72px;
+  color: var(--muted);
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown.urgent {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .primary,
@@ -192,7 +206,7 @@ main {
 
 .tools {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
 }
 
@@ -389,7 +403,21 @@ canvas {
 
 .annotation.selected {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(47, 111, 143, 0.14);
+  background: #e8f1f5;
+  box-shadow: 0 0 0 3px rgba(47, 111, 143, 0.22);
+}
+
+.annotation.selected::after {
+  content: "已选中";
+  align-self: center;
+  flex: 0 0 auto;
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.annotation.selected strong {
+  color: var(--blue);
 }
 
 .dot {
@@ -470,6 +498,8 @@ canvas {
   </div>
   <div class="task" id="task"></div>
   <div class="actions">
+    <span id="countdown" class="countdown"></span>
+    <button id="extendBtn" class="ghost" hidden>延长 5 分钟</button>
     <button id="cancelBtn" class="ghost">取消</button>
     <button id="saveBtn" class="primary">保存并结束</button>
   </div>
@@ -480,11 +510,12 @@ canvas {
     <section class="card">
       <h2>标注工具</h2>
       <div class="tools">
-        <button class="tool active" data-tool="rect">框选</button>
+        <button class="tool active" data-tool="select">选择</button>
+        <button class="tool" data-tool="rect">框选</button>
         <button class="tool" data-tool="polygon">多边形</button>
         <button class="tool" data-tool="point">标记点</button>
       </div>
-      <p class="hint" id="toolHint">拖拽生成矩形框</p>
+      <p class="hint" id="toolHint">拖动空白处平移, 点击矩形可编辑</p>
     </section>
 
     <section class="card">
@@ -565,21 +596,27 @@ const ctx = canvas.getContext("2d");
 const statusEl = document.getElementById("status");
 const annotationsEl = document.getElementById("annotations");
 const zoomLabel = document.getElementById("zoomLabel");
+const countdownEl = document.getElementById("countdown");
+const extendBtn = document.getElementById("extendBtn");
 
 const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 10;
+const HIT_TOLERANCE = 8;
+const HANDLE_SIZE = 8;
 
 const state = {
   meta: null,
   images: [],
   activeIndex: 0,
-  tool: "rect",
+  tool: "select",
   zoom: 1,
   offsetX: 0,
   offsetY: 0,
   dpr: 1,
   selectedId: null,
   draft: null,
+  deadline: null,
+  timeoutSeconds: 0,
 };
 
 let dragging = null;
@@ -713,6 +750,223 @@ function eventPoint(event) {
   return { x: event.clientX - rect.left, y: event.clientY - rect.top };
 }
 
+function pointInPolygon(screenPoint, points) {
+  let inside = false;
+  for (let index = 0, previous = points.length - 1; index < points.length; previous = index++) {
+    const current = points[index];
+    const previousPoint = points[previous];
+    const intersects =
+      current.y > screenPoint.y !== previousPoint.y > screenPoint.y &&
+      screenPoint.x <
+        ((previousPoint.x - current.x) * (screenPoint.y - current.y)) /
+          (previousPoint.y - current.y) +
+          current.x;
+    if (intersects) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function hitTestRegion(region, screenPoint) {
+  if (region.shape === "rect") {
+    const a = toScreen(region.points[0]);
+    const b = toScreen(region.points[1]);
+    const left = Math.min(a.x, b.x) - HIT_TOLERANCE;
+    const top = Math.min(a.y, b.y) - HIT_TOLERANCE;
+    const right = Math.max(a.x, b.x) + HIT_TOLERANCE;
+    const bottom = Math.max(a.y, b.y) + HIT_TOLERANCE;
+    return screenPoint.x >= left && screenPoint.x <= right && screenPoint.y >= top && screenPoint.y <= bottom;
+  }
+  if (region.shape === "polygon") {
+    return pointInPolygon(screenPoint, region.points.map((point) => toScreen(point)));
+  }
+  const point = toScreen(region.points[0]);
+  return Math.hypot(screenPoint.x - point.x, screenPoint.y - point.y) <= HIT_TOLERANCE + 4;
+}
+
+function hitTestRegions(screenPoint) {
+  const item = activeImage();
+  if (!item) {
+    return null;
+  }
+  for (let index = item.regions.length - 1; index >= 0; index--) {
+    if (hitTestRegion(item.regions[index], screenPoint)) {
+      return item.regions[index];
+    }
+  }
+  return null;
+}
+
+function resizeHandleAt(region, screenPoint) {
+  if (region.shape !== "rect") {
+    return null;
+  }
+  const a = toScreen(region.points[0]);
+  const b = toScreen(region.points[1]);
+  const left = Math.min(a.x, b.x);
+  const top = Math.min(a.y, b.y);
+  const right = Math.max(a.x, b.x);
+  const bottom = Math.max(a.y, b.y);
+  let handle = "";
+  if (Math.abs(screenPoint.y - top) <= HIT_TOLERANCE) {
+    handle += "n";
+  } else if (Math.abs(screenPoint.y - bottom) <= HIT_TOLERANCE) {
+    handle += "s";
+  }
+  if (Math.abs(screenPoint.x - left) <= HIT_TOLERANCE) {
+    handle += "w";
+  } else if (Math.abs(screenPoint.x - right) <= HIT_TOLERANCE) {
+    handle += "e";
+  }
+  return handle || null;
+}
+
+function polygonVertexAt(region, screenPoint) {
+  if (region.shape !== "polygon") {
+    return -1;
+  }
+  for (let index = 0; index < region.points.length; index++) {
+    const point = toScreen(region.points[index]);
+    if (Math.hypot(screenPoint.x - point.x, screenPoint.y - point.y) <= HIT_TOLERANCE + 4) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function cursorForHandle(handle) {
+  const vertical = handle.includes("n") || handle.includes("s");
+  const horizontal = handle.includes("e") || handle.includes("w");
+  if (vertical && horizontal) {
+    const reverseDiagonal =
+      (handle.includes("n") && handle.includes("e")) || (handle.includes("s") && handle.includes("w"));
+    return reverseDiagonal ? "nesw-resize" : "nwse-resize";
+  }
+  if (vertical) {
+    return "ns-resize";
+  }
+  if (horizontal) {
+    return "ew-resize";
+  }
+  return "move";
+}
+
+function updateSelectCursor(screenPoint) {
+  if (state.tool !== "select") {
+    canvas.style.cursor = state.tool === "point" ? "default" : "crosshair";
+    return;
+  }
+  const item = activeImage();
+  if (!item) {
+    canvas.style.cursor = "default";
+    return;
+  }
+  const hit = hitTestRegions(screenPoint);
+  const selected = state.selectedId ? findRegion(state.selectedId) : null;
+  if (selected) {
+    const handle = resizeHandleAt(selected, screenPoint);
+    if (handle) {
+      canvas.style.cursor = cursorForHandle(handle);
+      return;
+    }
+    if (polygonVertexAt(selected, screenPoint) >= 0 || (hit && hit.id === selected.id)) {
+      canvas.style.cursor = "move";
+      return;
+    }
+  }
+  if (hit) {
+    canvas.style.cursor = "pointer";
+    return;
+  }
+  canvas.style.cursor = "grab";
+}
+
+function moveRegion(region, startPoints, delta) {
+  const meta = activeImage().meta;
+  const points = startPoints.map((point) => ({
+    x: Math.max(0, Math.min(meta.width, Math.round(point.x + delta.x))),
+    y: Math.max(0, Math.min(meta.height, Math.round(point.y + delta.y))),
+  }));
+  region.points = points;
+  region.box = boxForPoints(points);
+}
+
+function resizeRegion(region, handle, startBox, imagePoint) {
+  const meta = activeImage().meta;
+  const x = Math.max(0, Math.min(meta.width, imagePoint.x));
+  const y = Math.max(0, Math.min(meta.height, imagePoint.y));
+  let x1 = startBox.x1;
+  let y1 = startBox.y1;
+  let x2 = startBox.x2;
+  let y2 = startBox.y2;
+  if (handle.includes("w")) {
+    x1 = Math.min(x, x2 - 1);
+  }
+  if (handle.includes("e")) {
+    x2 = Math.max(x, x1 + 1);
+  }
+  if (handle.includes("n")) {
+    y1 = Math.min(y, y2 - 1);
+  }
+  if (handle.includes("s")) {
+    y2 = Math.max(y, y1 + 1);
+  }
+  const points = [
+    { x: Math.round(x1), y: Math.round(y1) },
+    { x: Math.round(x2), y: Math.round(y2) },
+  ];
+  region.points = points;
+  region.box = boxForPoints(points);
+}
+
+function drawResizeHandles(region) {
+  ctx.fillStyle = "#ffffff";
+  ctx.strokeStyle = region.color;
+  ctx.lineWidth = 2;
+  if (region.shape === "polygon") {
+    for (const point of region.points) {
+      const screen = toScreen(point);
+      ctx.beginPath();
+      ctx.arc(screen.x, screen.y, HANDLE_SIZE / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    return;
+  }
+  if (region.shape === "point") {
+    const screen = toScreen(region.points[0]);
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, HANDLE_SIZE / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    return;
+  }
+  if (region.shape !== "rect") {
+    return;
+  }
+  const a = toScreen(region.points[0]);
+  const b = toScreen(region.points[1]);
+  const left = Math.min(a.x, b.x);
+  const top = Math.min(a.y, b.y);
+  const right = Math.max(a.x, b.x);
+  const bottom = Math.max(a.y, b.y);
+  const handles = [
+    { x: left, y: top },
+    { x: (left + right) / 2, y: top },
+    { x: right, y: top },
+    { x: left, y: (top + bottom) / 2 },
+    { x: right, y: (top + bottom) / 2 },
+    { x: left, y: bottom },
+    { x: (left + right) / 2, y: bottom },
+    { x: right, y: bottom },
+  ];
+  for (const handle of handles) {
+    ctx.fillRect(handle.x - HANDLE_SIZE / 2, handle.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+    ctx.strokeRect(handle.x - HANDLE_SIZE / 2, handle.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+  }
+}
+
 function draw() {
   const size = cssSize();
   ctx.clearRect(0, 0, size.width, size.height);
@@ -741,9 +995,13 @@ function draw() {
 function drawRegion(region) {
   const selected = region.id === state.selectedId;
   ctx.save();
-  ctx.strokeStyle = region.color;
-  ctx.lineWidth = selected ? 3 : 2;
-  ctx.fillStyle = `${region.color}22`;
+  ctx.strokeStyle = selected ? "#1d4e6b" : region.color;
+  ctx.lineWidth = selected ? 4 : 2;
+  ctx.fillStyle = selected ? `${region.color}44` : `${region.color}22`;
+  if (selected) {
+    ctx.shadowColor = "rgba(29, 78, 107, 0.55)";
+    ctx.shadowBlur = 12;
+  }
 
   if (region.shape === "rect") {
     const a = toScreen(region.points[0]);
@@ -781,6 +1039,12 @@ function drawRegion(region) {
     ctx.moveTo(point.x, point.y - 12);
     ctx.lineTo(point.x, point.y + 12);
     ctx.stroke();
+  }
+
+  ctx.shadowBlur = 0;
+
+  if (selected) {
+    drawResizeHandles(region);
   }
 
   const text = [region.label, region.note].filter(Boolean).join(" - ");
@@ -1037,11 +1301,14 @@ function setTool(tool) {
   document.querySelectorAll(".tool").forEach((button) => {
     button.classList.toggle("active", button.dataset.tool === tool);
   });
-  if (tool === "rect") {
+  if (tool === "select") {
+    toolHint.textContent = "拖动空白处平移, 点击矩形可编辑";
+    canvas.style.cursor = "default";
+  } else if (tool === "rect") {
     toolHint.textContent = "拖拽生成矩形框";
     canvas.style.cursor = "crosshair";
   } else if (tool === "polygon") {
-    toolHint.textContent = "依次点击顶点, 双击或 Enter 结束";
+    toolHint.textContent = "依次点击顶点, 点击起点自动闭合";
     canvas.style.cursor = "crosshair";
   } else {
     toolHint.textContent = "点击图片添加标记点";
@@ -1096,6 +1363,42 @@ function zoomBy(factor) {
   zoomAt({ x: size.width / 2, y: size.height / 2 }, factor);
 }
 
+function updateCountdown() {
+  if (!state.deadline) {
+    countdownEl.textContent = "";
+    extendBtn.hidden = true;
+    return;
+  }
+  const remaining = Math.max(0, Math.ceil((state.deadline - Date.now()) / 1000));
+  const minutes = String(Math.floor(remaining / 60)).padStart(2, "0");
+  const seconds = String(remaining % 60).padStart(2, "0");
+  countdownEl.textContent = `剩余 ${minutes}:${seconds}`;
+  countdownEl.classList.toggle("urgent", remaining <= 60);
+  extendBtn.hidden = false;
+}
+
+async function extendTimeout() {
+  try {
+    const response = await fetch("/api/extend", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-lookit-token": token,
+      },
+      body: JSON.stringify({ seconds: 300 }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "延长超时失败");
+    }
+    state.deadline = Date.parse(result.deadline);
+    state.timeoutSeconds = result.timeoutSeconds;
+    updateCountdown();
+  } catch (error) {
+    statusEl.textContent = `延长失败: ${error.message}`;
+  }
+}
+
 document.querySelectorAll(".tool").forEach((button) => {
   button.addEventListener("click", () => setTool(button.dataset.tool));
 });
@@ -1113,6 +1416,7 @@ document.getElementById("zoomFitBtn").addEventListener("click", () => {
 });
 document.getElementById("zoom100Btn").addEventListener("click", () => setZoomCentered(1));
 document.getElementById("zoom10Btn").addEventListener("click", () => setZoomCentered(10));
+extendBtn.addEventListener("click", extendTimeout);
 
 canvas.addEventListener("pointerdown", (event) => {
   const item = activeImage();
@@ -1138,6 +1442,65 @@ canvas.addEventListener("pointerdown", (event) => {
     return;
   }
 
+  if (state.tool === "select") {
+    const hit = hitTestRegions(screenPoint);
+    if (hit) {
+      const wasSelected = state.selectedId === hit.id;
+      selectRegion(hit.id);
+      if (!wasSelected) {
+        draw();
+        return;
+      }
+      const imagePoint = toImage(screenPoint);
+      const vertexIndex = polygonVertexAt(hit, screenPoint);
+      if (vertexIndex >= 0) {
+        dragging = {
+          mode: "vertex",
+          vertexIndex,
+          startImage: imagePoint,
+        };
+        canvas.style.cursor = "move";
+        draw();
+        return;
+      }
+      const handle = resizeHandleAt(hit, screenPoint);
+      if (handle) {
+        dragging = {
+          mode: "resize",
+          handle,
+          startBox: { ...hit.box },
+          startImage: imagePoint,
+        };
+        canvas.style.cursor = cursorForHandle(handle);
+      } else {
+        dragging = {
+          mode: "move",
+          startPoints: hit.points.map((point) => ({ ...point })),
+          startImage: imagePoint,
+        };
+        canvas.style.cursor = "move";
+      }
+      draw();
+      return;
+    }
+    if (state.selectedId !== null) {
+      state.selectedId = null;
+      updateAnnotationButtons();
+      renderAnnotations();
+      draw();
+    }
+    dragging = {
+      mode: "pan",
+      startX: screenPoint.x,
+      startY: screenPoint.y,
+      originX: state.offsetX,
+      originY: state.offsetY,
+    };
+    canvas.style.cursor = "grabbing";
+    event.preventDefault();
+    return;
+  }
+
   if (state.tool === "rect") {
     state.draft = { shape: "rect", points: [imagePoint], pointer: imagePoint };
     dragging = { mode: "rect" };
@@ -1151,6 +1514,13 @@ canvas.addEventListener("pointerdown", (event) => {
     if (!state.draft || state.draft.shape !== "polygon") {
       state.draft = { shape: "polygon", points: [], pointer: imagePoint };
     }
+    if (state.draft.points.length >= 3) {
+      const firstScreen = toScreen(state.draft.points[0]);
+      if (Math.hypot(screenPoint.x - firstScreen.x, screenPoint.y - firstScreen.y) <= HIT_TOLERANCE + 4) {
+        finishPolygon();
+        return;
+      }
+    }
     state.draft.points.push(imagePoint);
     state.draft.pointer = imagePoint;
     draw();
@@ -1159,13 +1529,55 @@ canvas.addEventListener("pointerdown", (event) => {
 
 canvas.addEventListener("pointermove", (event) => {
   const screenPoint = eventPoint(event);
+  if (dragging && dragging.mode === "move") {
+    const region = findRegion(state.selectedId);
+    const imagePoint = toImage(screenPoint);
+    if (region) {
+      canvas.style.cursor = "move";
+      moveRegion(region, dragging.startPoints, {
+        x: imagePoint.x - dragging.startImage.x,
+        y: imagePoint.y - dragging.startImage.y,
+      });
+      renderAnnotations();
+      draw();
+    }
+    return;
+  }
+  if (dragging && dragging.mode === "vertex") {
+    const region = findRegion(state.selectedId);
+    const imagePoint = toImage(screenPoint);
+    if (region && region.shape === "polygon") {
+      const meta = activeImage().meta;
+      canvas.style.cursor = "move";
+      region.points[dragging.vertexIndex] = clampPoints([imagePoint], meta.width, meta.height)[0];
+      region.box = boxForPoints(region.points);
+      renderAnnotations();
+      draw();
+    }
+    return;
+  }
+  if (dragging && dragging.mode === "resize") {
+    const region = findRegion(state.selectedId);
+    const imagePoint = toImage(screenPoint);
+    if (region) {
+      canvas.style.cursor = cursorForHandle(dragging.handle);
+      resizeRegion(region, dragging.handle, dragging.startBox, imagePoint);
+      renderAnnotations();
+      draw();
+    }
+    return;
+  }
   if (dragging && dragging.mode === "pan") {
+    canvas.style.cursor = "grabbing";
     state.offsetX = dragging.originX + screenPoint.x - dragging.startX;
     state.offsetY = dragging.originY + screenPoint.y - dragging.startY;
     draw();
     return;
   }
   const imagePoint = toImage(screenPoint);
+  if (!dragging && state.tool === "select") {
+    updateSelectCursor(screenPoint);
+  }
   if (dragging && dragging.mode === "rect" && state.draft) {
     state.draft.points[1] = imagePoint;
     state.draft.pointer = imagePoint;
@@ -1182,6 +1594,12 @@ canvas.addEventListener("pointerup", (event) => {
   const screenPoint = eventPoint(event);
   if (dragging && dragging.mode === "pan") {
     dragging = null;
+    updateSelectCursor(screenPoint);
+    return;
+  }
+  if (dragging && (dragging.mode === "move" || dragging.mode === "resize" || dragging.mode === "vertex")) {
+    dragging = null;
+    updateSelectCursor(screenPoint);
     return;
   }
   if (dragging && dragging.mode === "rect" && state.draft) {
@@ -1195,13 +1613,23 @@ canvas.addEventListener("pointerup", (event) => {
   dragging = null;
 });
 
-canvas.addEventListener("pointercancel", () => {
+canvas.addEventListener("pointercancel", (event) => {
   dragging = null;
   state.draft = null;
   draw();
+  updateSelectCursor(eventPoint(event));
 });
 
 canvas.addEventListener("dblclick", (event) => {
+  if (state.tool === "select") {
+    const hit = hitTestRegions(eventPoint(event));
+    if (hit) {
+      selectRegion(hit.id);
+      noteInput.focus();
+      noteInput.select();
+      return;
+    }
+  }
   event.preventDefault();
   finishPolygon();
 });
@@ -1220,6 +1648,17 @@ canvas.addEventListener("wheel", (event) => {
 canvas.addEventListener("contextmenu", (event) => event.preventDefault());
 
 document.addEventListener("keydown", (event) => {
+  const target = event.target;
+  const isEditable =
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLElement && target.isContentEditable);
+  if ((event.key === "Delete" || event.key === "Backspace") && state.selectedId && !isEditable) {
+    event.preventDefault();
+    deleteSelected();
+    return;
+  }
   if (event.key === "Escape") {
     state.draft = null;
     draw();
@@ -1238,7 +1677,13 @@ document.addEventListener("keydown", (event) => {
 document.addEventListener("keyup", (event) => {
   if (event.key === " ") {
     spaceDown = false;
-    canvas.style.cursor = state.tool === "point" ? "default" : "crosshair";
+    if (state.tool === "select") {
+      canvas.style.cursor = "grab";
+    } else if (state.tool === "point") {
+      canvas.style.cursor = "default";
+    } else {
+      canvas.style.cursor = "crosshair";
+    }
   }
 });
 
@@ -1327,6 +1772,10 @@ async function init() {
   }
   state.meta = await response.json();
   taskEl.textContent = state.meta.task;
+  state.timeoutSeconds = state.meta.timeoutSeconds || 0;
+  state.deadline = state.meta.deadline ? Date.parse(state.meta.deadline) : null;
+  updateCountdown();
+  setInterval(updateCountdown, 1000);
   renderLabels();
   state.meta.images.forEach((meta, index) => {
     const item = { meta, image: null, notes: [], regions: [] };
