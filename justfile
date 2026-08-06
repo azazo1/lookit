@@ -50,8 +50,8 @@ build-human: build-human-app
 # just install-human
 # 编译独立 human CLI 并安装到 ~/.local/bin/human.
 install-human: build-human
-    @mkdir -p "$${HOME}/.local/bin"
-    @install -m 755 dist/human "$${HOME}/.local/bin/human"
+    @mkdir -p "${HOME}/.local/bin"
+    install -m 755 dist/human "${HOME}/.local/bin/human"
 
 # just glance <图片> [参数]
 # 使用 glance 描述/提问/OCR 图片.
