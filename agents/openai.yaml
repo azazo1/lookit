@@ -1,4 +1,4 @@
 interface:
   display_name: "lookit"
   short_description: "图片描述, OCR, 定位, 人工辅助读图, 模型 SVG 还原与像素分析"
-  default_prompt: "使用 $lookit 查看或还原这张图片, 可调用 glance, ground, detect, trace, crop, extract_fg, html_shot, model-svg, ascii 或 review. 如果你是视觉模型, 无需使用此 skill."
+  default_prompt: "使用 $lookit 查看或还原这张图片, 可调用 glance, ground, detect, trace, crop, extract_fg, html_shot, model-svg, ascii 或 human. 如果你是视觉模型, 无需使用此 skill."

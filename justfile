@@ -14,7 +14,7 @@ deps:
 # just check
 # 编译全部 CLI 并检查帮助信息.
 check:
-    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/model_svg.ts scripts/dominant_colors.ts scripts/pixel_diff.ts scripts/ascii.ts scripts/review.ts scripts/crop.ts scripts/extract_fg.ts scripts/html_shot.ts --outdir /tmp/lookit-build
+    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/model_svg.ts scripts/dominant_colors.ts scripts/pixel_diff.ts scripts/ascii.ts scripts/human.ts scripts/crop.ts scripts/extract_fg.ts scripts/html_shot.ts --outdir /tmp/lookit-build
     bun run scripts/glance.ts --help
     bun run scripts/ground.ts --help
     bun run scripts/detect.ts --help
@@ -23,7 +23,7 @@ check:
     bun run scripts/dominant_colors.ts --help
     bun run scripts/pixel_diff.ts --help
     bun run scripts/ascii.ts --help
-    bun run scripts/review.ts --help
+    bun run scripts/human.ts --help
     bun run scripts/crop.ts --help
     bun run scripts/extract_fg.ts --help
     bun run scripts/html_shot.ts --help
@@ -31,7 +31,7 @@ check:
 # just build
 # 编译全部 CLI 到 /tmp/lookit-build.
 build:
-    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/model_svg.ts scripts/dominant_colors.ts scripts/pixel_diff.ts scripts/ascii.ts scripts/review.ts scripts/crop.ts scripts/extract_fg.ts scripts/html_shot.ts --outdir /tmp/lookit-build
+    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/model_svg.ts scripts/dominant_colors.ts scripts/pixel_diff.ts scripts/ascii.ts scripts/human.ts scripts/crop.ts scripts/extract_fg.ts scripts/html_shot.ts --outdir /tmp/lookit-build
 
 # just glance <图片> [参数]
 # 使用 glance 描述/提问/OCR 图片.
@@ -73,10 +73,10 @@ pixel-diff *args:
 ascii *args:
     @bun run scripts/ascii.ts {{ args }}
 
-# just review <图片> [--task ...] [--labels ...] [--output ...]
-# 打开本地页面让用户注解图片并返回结果
-review *args:
-    @bun run scripts/review.ts {{ args }}
+# just human <图片> [--task ...] [--labels ...] [--output ...]
+# 打开本地页面让用户注解图片并返回结果.
+human *args:
+    @bun run scripts/human.ts {{ args }}
 
 # just crop <图片> --region X1,Y1,X2,Y2 [-o 输出.png] [--scale N]
 # 把图片中的像素盒裁成独立 PNG 文件.

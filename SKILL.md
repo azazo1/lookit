@@ -1,13 +1,13 @@
 ---
 name: lookit
-description: 给无视觉能力模型提供的本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片), ground (定位目标并输出像素框), detect (盘点元素), trace (本地把图片转为 SVG 几何), crop (把像素盒裁成文件), extract_fg (提取图标前景), html_shot (HTML 截图), model-svg (让视觉模型直接生成 SVG), dominant_colors, pixel_diff, ascii (图片转 ASCII 像素网格) 和 review (人工审查图片). 适用于图片问答, 文字提取, 元素定位, 图片对比, HTML/SVG 还原等需要看图的场景.
+description: 给无视觉能力模型提供的本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片), ground (定位目标并输出像素框), detect (盘点元素), trace (本地把图片转为 SVG 几何), crop (把像素盒裁成文件), extract_fg (提取图标前景), html_shot (HTML 截图), model-svg (让视觉模型直接生成 SVG), dominant_colors, pixel_diff, ascii (图片转 ASCII 像素网格) 和 human (人工注解图片). 适用于图片问答, 文字提取, 元素定位, 图片对比, HTML/SVG 还原等需要看图的场景.
 ---
 
 # lookit
 
-十二个本地 CLI 让纯文本 agent 拥有看图能力. 它们共享同一份视觉配置 (`LOOKIT_API_KEY` / `LOOKIT_BASE_URL` / `LOOKIT_MODEL` / `LOOKIT_LANG`), 不需要额外凭证.
+十二个本地 CLI 让没有视觉能力的 agent 拥有看图能力. 它们共享同一份视觉配置 (`LOOKIT_API_KEY` / `LOOKIT_BASE_URL` / `LOOKIT_MODEL` / `LOOKIT_LANG`), 不需要额外凭证.
 
-本文中的 `glance`, `ground`, `detect`, `trace`, `crop`, `extract_fg`, `html_shot`, `model-svg`, `dominant_colors`, `pixel_diff`, `ascii`, `review` 分别是 `bun run scripts/glance.ts`, `bun run scripts/ground.ts`, `bun run scripts/detect.ts`, `bun run scripts/trace.ts`, `bun run scripts/crop.ts`, `bun run scripts/extract_fg.ts`, `bun run scripts/html_shot.ts`, `bun run scripts/model_svg.ts`, `bun run scripts/dominant_colors.ts`, `bun run scripts/pixel_diff.ts`, `bun run scripts/ascii.ts`, `bun run scripts/review.ts` 的缩写.
+本文中的 `glance`, `ground`, `detect`, `trace`, `crop`, `extract_fg`, `html_shot`, `model-svg`, `dominant_colors`, `pixel_diff`, `ascii`, `human` 分别是 `bun run scripts/glance.ts`, `bun run scripts/ground.ts`, `bun run scripts/detect.ts`, `bun run scripts/trace.ts`, `bun run scripts/crop.ts`, `bun run scripts/extract_fg.ts`, `bun run scripts/html_shot.ts`, `bun run scripts/model_svg.ts`, `bun run scripts/dominant_colors.ts`, `bun run scripts/pixel_diff.ts`, `bun run scripts/ascii.ts`, `bun run scripts/human.ts` 的缩写.
 
 ## CLI 执行目录
 
@@ -37,7 +37,7 @@ cmd: "bun run scripts/glance.ts image.png -q \"...\""
 | 区域内有哪些主色, 候选色中哪个最接近? | `dominant_colors` |
 | 这些工具没有返回的数字, 比如颜色值或两个元素之间的距离 | `pixel_diff` |
 | 图片的粗略像素结构或逐像素字符对比是什么? | `ascii` |
-| 需要人工确认的细节, 视觉模型不能可靠判断的内容 | `review` |
+| 需要人工确认用户意图, 由用户决定设计和注解, 普通多模态模型无法可靠决策分析 | `human` |
 
 `glance` 回答"是什么", `ground` 和 `detect` 回答"在哪里". `ground` 接收一个具体对象的描述, `detect` 接收一个类别并枚举实例.
 
@@ -177,16 +177,18 @@ dominant_colors <image> --region X1,Y1,X2,Y2 \
 
 视觉模型能说出颜色名称 (比如 "浅灰"), 但不能给出具体色值. 第一种模式降采样, 量化和合并相近颜色, 输出区域主要颜色及各自占比; 直方图显示哪个是背景, 哪个是强调色. 给定标签对应的候选调色板后, 第二种模式按区域像素与每个候选色的接近程度打分并输出胜者. 色值从这里取, 不要从 `glance` 的散文描述里取. 路径相对本 skill 自己的目录.
 
-## review - 人工图片审查 (本地页面, 不调用视觉 API)
+## human - 人工图片审查 (本地页面, 不调用视觉 API)
 
 ```bash
-review <image>                                              # 打开页面等待人工注解
-review <image> --task "请标出所有按钮和输入框" --labels "按钮,输入框"
-review <image> --output 注解.json --text                    # 保存注解并输出人类可读摘要
-review <image> --timeout 120 --no-open                      # 不自动打开浏览器
+human <image>                                              # 打开页面等待人工注解
+human <image> --task "请标出所有按钮和输入框" --labels "按钮,输入框"
+human <image> --output 注解.json --text                    # 保存注解并输出人类可读摘要
+human <image> --timeout 120 --no-open                      # 不自动打开浏览器
 ```
 
-该命令会启动一个本地 HTTP 服务, 打开浏览器页面. 用户可以用矩形框选, 多边形或标记点补充区域注解, 也可以给每张图片和整体任务写文字结论. 提交后脚本立即退出, 默认把 JSON 结果输出到标准输出供 agent 直接使用; `--text` 会改成人类可读摘要. 取消后页面会尝试自动关闭, 取消或超时不会生成注解.
+当你想要理解用户究竟想表达图像中的什么问题, 想要怎么进行设计和注解, 而普通多模态模型无法可靠决策和分析时, 使用 `human` 脚本.
+
+该命令会启动一个本地 HTTP 服务, 打开浏览器页面. 用户可以用矩形框选, 多边形或标记点补充区域注解, 也可以给每张图片和整体任务写文字结论. 提交后脚本立即退出, 默认把 JSON 结果输出到标准输出供你直接使用; `--text` 会改成人类可读摘要. 取消后页面会尝试自动关闭, 取消或超时不会生成注解.
 
 返回的每个区域都包含原图像素坐标 `box` 和原始 `points`; `box` 可直接传给 `glance --region` 或 `dominant_colors --region` 做后续处理. 默认监听 `127.0.0.1` 和随机端口, `--output` 会把 JSON 写入文件. 页面默认是选择/拖拽模式, 点击矩形后可直接编辑标签和说明, 编辑内容会立即更新当前区域, 取消选择后编辑框会清空; 拖拽矩形可移动, 拖动边角可调整大小, 切到框选模式后再拖拽生成新矩形. 页面支持滚轮或按钮把图片放大到最多 10 倍, 并显示超时倒计时, 可点击延长 5 分钟.
 页面支持数字键 `1-4` 快速切换选择, 框选, 多边形和标记点, 输入框获得焦点时不会触发切换.

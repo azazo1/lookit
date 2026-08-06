@@ -62,7 +62,7 @@ type Outcome =
   | { type: "timeout" };
 
 function fail(message: string): never {
-  console.error(`review: ${message}`);
+  console.error(`human: ${message}`);
   process.exit(1);
 }
 
@@ -147,7 +147,7 @@ function parseArgv(argv: string[]): Options {
       options.output = arg.slice("--output=".length);
     } else if (arg === "--help" || arg === "-h") {
       console.error(
-        "用法: bun run scripts/review.ts <图片> [<图片> ...] " +
+        "用法: bun run scripts/human.ts <图片> [<图片> ...] " +
           "[--host 127.0.0.1] [--port 0] [--task 问题] [--labels 标签1,标签2] " +
           "[--output 注解.json] [--json | --text] [--timeout 秒数] [--no-open]",
       );
@@ -336,7 +336,7 @@ function displayHost(host: string): string {
 async function main(): Promise<void> {
   const options = parseArgv(process.argv.slice(2));
   const metas = await loadImageMetas(options.images);
-  const htmlPath = join(dirname(fileURLToPath(import.meta.url)), "review-app.html");
+  const htmlPath = join(dirname(fileURLToPath(import.meta.url)), "human-app.html");
   if (!existsSync(htmlPath)) {
     fail(`缺少审查页面: ${htmlPath}`);
   }

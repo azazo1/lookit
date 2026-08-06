@@ -11,7 +11,7 @@
     "dominant-colors": "bun run scripts/dominant_colors.ts",
     "pixel-diff": "bun run scripts/pixel_diff.ts",
     "ascii": "bun run scripts/ascii.ts",
-    "review": "bun run scripts/review.ts",
+    "human": "bun run scripts/human.ts",
     "crop": "bun run scripts/crop.ts",
     "extract-fg": "bun run scripts/extract_fg.ts",
     "html-shot": "bun run scripts/html_shot.ts"
