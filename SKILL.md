@@ -18,7 +18,7 @@ workdir: "/path/to/lookit"
 cmd: "bun run scripts/glance.ts image.png -q \"...\""
 ```
 
-不要把脚本写成 `/path/to/lookit/scripts/...` 的绝对路径. 图片路径可以继续使用绝对路径, 临时图片先按下方说明复制到 `work/`.
+不要把脚本写成 `/path/to/lookit/scripts/...` 的绝对路径. 图片路径可以继续使用绝对路径.
 
 默认配置从 `~/.config/lookit/config.toml` 读取, 可用 `LOOKIT_CONFIG` 指定其他 TOML 文件; 顶层字段为 `version`, `api_key`, `base_url`, `model`, `lang`; 也支持直接使用 `LOOKIT_API_KEY` 等环境变量覆盖.
 
@@ -153,17 +153,6 @@ review <image> --timeout 120 --no-open                      # 不自动打开浏
 该命令会启动一个本地 HTTP 服务, 打开浏览器页面. 用户可以用矩形框选, 多边形或标记点补充区域注解, 也可以给每张图片和整体任务写文字结论. 提交后脚本立即退出, 默认把 JSON 结果输出到标准输出供 agent 直接使用; `--text` 会改成人类可读摘要. 取消或超时不会生成注解.
 
 返回的每个区域都包含原图像素坐标 `box` 和原始 `points`; `box` 可直接传给 `glance --region` 或 `dominant_colors --region` 做后续处理. 默认监听 `127.0.0.1` 和随机端口, `--output` 会把 JSON 写入文件. 页面默认是选择/拖拽模式, 点击矩形可编辑说明, 拖拽矩形可移动, 拖动边角可调整大小; 切到框选模式后再拖拽生成新矩形. 页面支持滚轮或按钮把图片放大到最多 10 倍, 并显示超时倒计时, 可点击延长 5 分钟.
-
-## 使用副本, 不要用临时路径
-
-如果图片位于临时目录, 第一次工具调用前先复制到持久位置, 并一直对副本操作, 这样后续仍能访问:
-
-```bash
-cp "<临时路径>" work/shot.png
-glance work/shot.png -q "..."
-```
-
-例外: 用户明确要求图片保留在临时目录.
 
 ## 只有文字描述而没有图片时
 
