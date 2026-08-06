@@ -1675,11 +1675,11 @@ document.addEventListener("keydown", (event) => {
     state.draft = null;
     draw();
   }
-  if (event.key === "Enter" && state.tool === "polygon") {
+  if (event.key === "Enter" && state.tool === "polygon" && !isEditable) {
     event.preventDefault();
     finishPolygon();
   }
-  if (event.key === " ") {
+  if (event.key === " " && !isEditable) {
     spaceDown = true;
     canvas.style.cursor = "grab";
     event.preventDefault();
