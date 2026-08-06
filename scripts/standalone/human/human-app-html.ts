@@ -758,6 +758,7 @@ function showEmpty() {
   removeImageBtn.disabled = true;
   statusEl.textContent = "暂无图片, 可粘贴截图, 拖放文件或输入本机路径";
   renderTabs();
+  refreshResultPreview();
 }
 
 async function uploadFiles(files) {
@@ -1405,8 +1406,33 @@ function findRegion(id) {
   return activeImage().regions.find((region) => region.id === id);
 }
 
+function refreshResultPreview() {
+  if (!state.meta || !state.serveMode) {
+    return;
+  }
+  captureImageNotes();
+  const preview = {
+    task: state.meta.task,
+    images: state.meta.images.map((meta, index) => {
+      const item = state.images[index];
+      return {
+        path: meta.path,
+        width: meta.width,
+        height: meta.height,
+        notes: item ? item.notes : [],
+        regions: item ? item.regions : [],
+      };
+    }),
+    conclusion: conclusion.value.trim(),
+    submittedAt: new Date().toISOString(),
+  };
+  resultJson.textContent = JSON.stringify(preview, null, 2);
+  resultCard.hidden = false;
+}
+
 function renderAnnotations() {
   const item = activeImage();
+  refreshResultPreview();
   annotationsEl.innerHTML = "";
   if (!item || !item.regions.length) {
     const empty = document.createElement("div");
@@ -1638,6 +1664,8 @@ document.querySelectorAll(".tool").forEach((button) => {
 
 labelInput.addEventListener("input", updateSelected);
 noteInput.addEventListener("input", updateSelected);
+imageNote.addEventListener("input", refreshResultPreview);
+conclusion.addEventListener("input", refreshResultPreview);
 deleteBtn.addEventListener("click", deleteSelected);
 document.getElementById("undoBtn").addEventListener("click", undo);
 document.getElementById("clearBtn").addEventListener("click", clearAnnotations);
@@ -2037,9 +2065,10 @@ saveBtn.addEventListener("click", async () => {
     if (state.serveMode) {
       resultCard.hidden = false;
       resultJson.textContent = JSON.stringify(result.submission, null, 2);
+      saveBtn.disabled = false;
       saveBtn.textContent = "再次提交";
       cancelBtn.disabled = false;
-      statusEl.textContent = \`已提交 #\${result.counter}, 结果 JSON 预览已生成\`;
+      statusEl.textContent = \`已提交 #\${result.counter}\`;
       submitted = false;
       return;
     }
@@ -2082,7 +2111,6 @@ cancelBtn.addEventListener("click", async () => {
     state.images = [];
     state.meta.images = [];
     conclusion.value = "";
-    resultCard.hidden = true;
     showEmpty();
     saveBtn.textContent = "提交结果";
     statusEl.textContent = "已清空, 可以开始新的一轮";
