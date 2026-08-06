@@ -620,6 +620,7 @@ export async function runHuman(argv: string[], runOptions: RunOptions = {}): Pro
             : 300;
           const remaining = deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000)) : 0;
           scheduleTimeout(remaining + extra);
+          console.log(`用户点击延长超时, 增加 ${extra} 秒, 剩余 ${timeoutSeconds} 秒`);
           return Response.json({
             ok: true,
             timeoutSeconds,
