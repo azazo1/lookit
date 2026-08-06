@@ -1,13 +1,13 @@
 ---
 name: lookit
-description: 给无视觉能力模型提供的本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片), ground (定位目标并输出像素框), detect (盘点元素), trace (本地把图片转为 SVG 几何), model-svg (让视觉模型直接生成 SVG), dominant_colors, pixel_diff, ascii (图片转 ASCII 像素网格) 和 review (人工审查图片). 适用于图片问答, 文字提取, 元素定位, 图片对比, HTML/SVG 还原等需要看图的场景.
+description: 给无视觉能力模型提供的本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片), ground (定位目标并输出像素框), detect (盘点元素), trace (本地把图片转为 SVG 几何), crop (把像素盒裁成文件), extract_fg (提取图标前景), html_shot (HTML 截图), model-svg (让视觉模型直接生成 SVG), dominant_colors, pixel_diff, ascii (图片转 ASCII 像素网格) 和 review (人工审查图片). 适用于图片问答, 文字提取, 元素定位, 图片对比, HTML/SVG 还原等需要看图的场景.
 ---
 
 # lookit
 
-九个本地 CLI 让纯文本 agent 拥有看图能力. 它们共享同一份视觉配置 (`LOOKIT_API_KEY` / `LOOKIT_BASE_URL` / `LOOKIT_MODEL` / `LOOKIT_LANG`), 不需要额外凭证.
+十二个本地 CLI 让纯文本 agent 拥有看图能力. 它们共享同一份视觉配置 (`LOOKIT_API_KEY` / `LOOKIT_BASE_URL` / `LOOKIT_MODEL` / `LOOKIT_LANG`), 不需要额外凭证.
 
-本文中的 `glance`, `ground`, `detect`, `trace`, `model-svg`, `dominant_colors`, `pixel_diff`, `ascii`, `review` 分别是 `bun run scripts/glance.ts`, `bun run scripts/ground.ts`, `bun run scripts/detect.ts`, `bun run scripts/trace.ts`, `bun run scripts/model_svg.ts`, `bun run scripts/dominant_colors.ts`, `bun run scripts/pixel_diff.ts`, `bun run scripts/ascii.ts`, `bun run scripts/review.ts` 的缩写.
+本文中的 `glance`, `ground`, `detect`, `trace`, `crop`, `extract_fg`, `html_shot`, `model-svg`, `dominant_colors`, `pixel_diff`, `ascii`, `review` 分别是 `bun run scripts/glance.ts`, `bun run scripts/ground.ts`, `bun run scripts/detect.ts`, `bun run scripts/trace.ts`, `bun run scripts/crop.ts`, `bun run scripts/extract_fg.ts`, `bun run scripts/html_shot.ts`, `bun run scripts/model_svg.ts`, `bun run scripts/dominant_colors.ts`, `bun run scripts/pixel_diff.ts`, `bun run scripts/ascii.ts`, `bun run scripts/review.ts` 的缩写.
 
 ## CLI 执行目录
 
@@ -30,6 +30,9 @@ cmd: "bun run scripts/glance.ts image.png -q \"...\""
 | X 在哪里? (能描述出具体对象) | `ground` |
 | 有哪些 X? (某一类对象的全部实例) | `detect` |
 | 精确形状/大小/偏移是什么? | `trace` |
+| 把这个像素盒裁成文件? | `crop` |
+| 从截图提取图标/Logo 前景? | `extract_fg` |
+| 把 HTML 渲染成截图? | `html_shot` |
 | 让视觉模型直接生成可编辑 SVG 草稿? | `model-svg` |
 | 区域内有哪些主色, 候选色中哪个最接近? | `dominant_colors` |
 | 这些工具没有返回的数字, 比如颜色值或两个元素之间的距离 | `pixel_diff` |
@@ -108,6 +111,39 @@ model-svg <image> --instruction "..." -o out.svg  # 添加形状或风格要求
 
 该命令要求模型只返回一个 SVG 文档, 自动去除代码围栏并校验标签结构, `viewBox`/尺寸, 脚本和外部资源. 它生成的是可编辑草稿, 仍需按 `references/restore.md` 渲染, 检查和人工整理; 不要把模型输出或 `pixel_diff` 结果直接当作最终质量判定.
 
+## crop - 把像素盒裁成独立文件 (本地处理, 不调用视觉 API)
+
+```bash
+crop <image> --region X1,Y1,X2,Y2              # 写到 <image-stem>.crop.png
+crop <image> --region X1,Y1,X2,Y2 -o out.png
+crop <image> --region X1,Y1,X2,Y2 --scale 4    # 放大 4 倍后写出
+```
+
+`--region` 使用 `ground`/`detect` 输出的原图像素框, 超出图片边界时自动收敛. 同一个盒子接下来要喂给 `pixel_diff`, `dominant_colors` 或 `trace` 多次时, 先裁一次存成文件复用, 而不是每次调用都在内存里重裁. `--scale N` 会先用 LANCZOS 放大裁剪结果, 适合小图标在继续定位或追踪前先放大; 后续工具返回的坐标处于放大后的网格, 需要除以 `N` 映射回原图.
+
+## extract_fg - 提取图标/Logo 前景透明 PNG (本地处理, 不调用视觉 API)
+
+```bash
+extract_fg <image> --region X1,Y1,X2,Y2 -o icon.png
+extract_fg <image> --region X1,Y1,X2,Y2 --mode dark
+extract_fg <image> --region X1,Y1,X2,Y2 --exclude-color '#E6E6E6'
+crop <image> --region X1,Y1,X2,Y2 --scale 4 -o icon4x.png
+extract_fg icon4x.png                          # 自动模式, 图标居中时无需 region
+extract_fg icon4x.png --boxes 101,84,184,171   # 用 ground 框校正自动圆心
+```
+
+手动模式在区域内取满足颜色条件的像素, 做 8 邻域连通分量分析, 保留足够大的分量, 输出透明背景 PNG 并打印原图像素 bbox. 自动模式假设传入的是 `crop --scale` 裁出的居中图标, 从圆环采样背景色并排除, 再从最大的几个彩色分量中选图形. 输出可直接交给下游 `crop`, `glance --region` 或 `<img>` 引用.
+
+## html_shot - 把 HTML 渲染成 PNG (本地处理, 需要 Chrome 系浏览器)
+
+```bash
+html_shot page.html                            # 写到 page.png, 1280x800
+html_shot page.html --width 1440 --height 900 -o page.png
+html_shot page.html --scale 2 --wait-ms 300    # 2 倍像素并等待字体/图片
+```
+
+渲染由本机 headless Chrome/Chromium/Edge 完成, 只捕获 viewport. 还原工作流中先写 HTML, 再 `html_shot` 截图, 最后用 `pixel_diff` 和 `glance` 对照设计图验证; 页面比窗口高时传 `--height`, 需要 HiDPI 清晰度时传 `--scale`.
+
 ## ascii - 图片转 ASCII 像素网格 (本地处理, 不调用视觉 API)
 
 ```bash
@@ -168,14 +204,16 @@ review <image> --timeout 120 --no-open                      # 不自动打开浏
 单个图片问题时, `glance` 就是完整答案. 多步骤任务从外到内进行:
 
 1. 先做一次全图扫描 (`glance`, 或使用已有描述), 得到布局和元素清单.
-2. 对关键元素使用 `ground` 定位, 再用 `glance --region <框> -q "..."` 放大. 全图扫描经常漏掉小文字和小图标, 裁剪后模型能看到更高有效分辨率.
+2. 对关键元素使用 `ground` 定位, 再用 `glance --region <框> -q "..."` 放大. 全图扫描经常漏掉小文字和小图标, 裁剪后模型能看到更高有效分辨率. 同一个盒子需要多次复用时, 先用 `crop` 裁成文件.
 3. 像素级事实 (精确颜色, 小偏移, 大小) 永远不要采用散文答案. 视觉模型会自信地报告不存在的样式, 比如单色代码块里的彩色语法高亮或实际不存在的边框. 数字从 `trace`, `ground` 框或 `pixel_diff` 获取; 只有这些都无法返回时才自己采样像素.
 
 ## 使用场景
 
 每个文件对应一类完整任务: 适用条件, 调用顺序和如何判断做对了.
 
-当任务是根据图片重建页面 (HTML), 图标或示意图 (SVG), 或提取视觉组件时, 阅读 `references/restore.md`.
+当任务是根据图片重建页面 (HTML), 图标或示意图 (SVG), 或提取视觉组件时, 阅读 `references/restore.md`, 并按其中规则选择 `references/restore-quick.md` 或 `references/restore-exact.md`.
+
+当任务是根据截图操作 GUI, 需要点击, 输入或滚动前先定位时, 阅读 `references/gui.md`.
 
 ## 注意事项
 
