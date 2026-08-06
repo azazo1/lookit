@@ -10,7 +10,8 @@
     "model-svg": "bun run scripts/model_svg.ts",
     "dominant-colors": "bun run scripts/dominant_colors.ts",
     "pixel-diff": "bun run scripts/pixel_diff.ts",
-    "ascii": "bun run scripts/ascii.ts"
+    "ascii": "bun run scripts/ascii.ts",
+    "review": "bun run scripts/review.ts"
   },
   "dependencies": {
     "@visioncortex/vtracer": "^1.0.0-alpha.3",
