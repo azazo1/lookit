@@ -261,7 +261,7 @@ textarea {
 
 .row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 8px;
   margin-top: 12px;
 }
@@ -515,18 +515,17 @@ canvas {
         <button class="tool" data-tool="polygon">多边形</button>
         <button class="tool" data-tool="point">标记点</button>
       </div>
-      <p class="hint" id="toolHint">拖动空白处平移, 点击矩形可编辑</p>
+      <p class="hint" id="toolHint">拖动空白处平移, 点击矩形后直接编辑标签或说明</p>
     </section>
 
     <section class="card">
       <h2>注解</h2>
       <label for="labelInput">标签</label>
-      <input id="labelInput" list="labelOptions" value="重要">
+      <input id="labelInput" list="labelOptions" placeholder="标签">
       <datalist id="labelOptions"></datalist>
       <label for="noteInput">说明</label>
       <textarea id="noteInput" rows="3" placeholder="写清模型无法确认的细节"></textarea>
       <div class="row">
-        <button id="updateBtn" disabled>更新选中</button>
         <button id="deleteBtn" disabled>删除选中</button>
       </div>
     </section>
@@ -586,7 +585,6 @@ const labelOptions = document.getElementById("labelOptions");
 const noteInput = document.getElementById("noteInput");
 const imageNote = document.getElementById("imageNote");
 const conclusion = document.getElementById("conclusion");
-const updateBtn = document.getElementById("updateBtn");
 const deleteBtn = document.getElementById("deleteBtn");
 const tabsEl = document.getElementById("tabs");
 const imageMetaEl = document.getElementById("imageMeta");
@@ -658,7 +656,7 @@ function renderLabels() {
   labelOptions.innerHTML = state.meta.labels
     .map((label) => `<option value="${escapeHtml(label)}"></option>`)
     .join("");
-  labelInput.value = state.meta.labels[0] || "重要";
+  labelInput.value = "";
 }
 
 function renderTabs() {
@@ -1160,8 +1158,6 @@ function colorForLabel(label) {
 
 function addRegion(shape, points) {
   const item = activeImage();
-  const label = labelInput.value.trim() || "未命名";
-  const note = noteInput.value.trim();
   const clamped = clampPoints(points, item.meta.width, item.meta.height);
   const box = boxForPoints(clamped);
   if (shape === "rect" && (box.x2 <= box.x1 || box.y2 <= box.y1)) {
@@ -1170,11 +1166,11 @@ function addRegion(shape, points) {
   const region = {
     id: crypto.randomUUID(),
     shape,
-    label,
-    note,
+    label: "",
+    note: "",
     points: clamped,
     box,
-    color: colorForLabel(label),
+    color: colorForLabel(""),
   };
   item.regions.push(region);
   state.selectedId = region.id;
@@ -1216,17 +1212,21 @@ function selectRegion(id) {
     return;
   }
   state.selectedId = id;
-  labelInput.value = region.label;
-  noteInput.value = region.note;
   updateAnnotationButtons();
   renderAnnotations();
   draw();
 }
 
+function syncAnnotationEditor() {
+  const region = state.selectedId ? findRegion(state.selectedId) : null;
+  labelInput.value = region ? region.label : "";
+  noteInput.value = region ? region.note : "";
+}
+
 function updateAnnotationButtons() {
-  const hasSelection = state.selectedId !== null && Boolean(findRegion(state.selectedId));
-  updateBtn.disabled = !hasSelection;
-  deleteBtn.disabled = !hasSelection;
+  const region = state.selectedId ? findRegion(state.selectedId) : null;
+  syncAnnotationEditor();
+  deleteBtn.disabled = !region;
 }
 
 function updateSelected() {
@@ -1234,11 +1234,22 @@ function updateSelected() {
   if (!region) {
     return;
   }
-  region.label = labelInput.value.trim() || "未命名";
-  region.note = noteInput.value.trim();
-  region.color = colorForLabel(region.label);
+  const label = labelInput.value.trim();
+  const note = noteInput.value.trim();
+  const labelChanged = region.label !== label;
+  const noteChanged = region.note !== note;
+  if (!labelChanged && !noteChanged) {
+    return;
+  }
+  region.label = label;
+  region.note = note;
+  if (labelChanged) {
+    region.color = colorForLabel(label);
+  }
   renderAnnotations();
-  draw();
+  if (labelChanged) {
+    draw();
+  }
 }
 
 function deleteSelected() {
@@ -1302,7 +1313,7 @@ function setTool(tool) {
     button.classList.toggle("active", button.dataset.tool === tool);
   });
   if (tool === "select") {
-    toolHint.textContent = "拖动空白处平移, 点击矩形可编辑";
+    toolHint.textContent = "拖动空白处平移, 点击矩形后直接编辑标签或说明";
     canvas.style.cursor = "default";
   } else if (tool === "rect") {
     toolHint.textContent = "拖拽生成矩形框";
@@ -1403,7 +1414,8 @@ document.querySelectorAll(".tool").forEach((button) => {
   button.addEventListener("click", () => setTool(button.dataset.tool));
 });
 
-updateBtn.addEventListener("click", updateSelected);
+labelInput.addEventListener("input", updateSelected);
+noteInput.addEventListener("input", updateSelected);
 deleteBtn.addEventListener("click", deleteSelected);
 document.getElementById("undoBtn").addEventListener("click", undo);
 document.getElementById("clearBtn").addEventListener("click", clearAnnotations);
@@ -1747,7 +1759,14 @@ cancelBtn.addEventListener("click", async () => {
   submitted = true;
   saveBtn.disabled = true;
   cancelBtn.disabled = true;
-  statusEl.textContent = "已取消, 可以关闭页面";
+  statusEl.textContent = "已取消";
+  setTimeout(() => {
+    try {
+      window.close();
+    } catch {
+      // Some browsers only close script-opened tabs.
+    }
+  }, 300);
 });
 
 window.addEventListener("beforeunload", (event) => {

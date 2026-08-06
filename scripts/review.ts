@@ -268,7 +268,7 @@ function normalizeRegion(value: unknown, width: number, height: number): RegionA
   return {
     id: stringValue(raw.id) || `region-${randomUUID()}`,
     shape,
-    label: stringValue(raw.label).trim() || "未命名",
+    label: stringValue(raw.label).trim(),
     note: stringValue(raw.note).trim(),
     points,
     box: boxForPoints(points),
