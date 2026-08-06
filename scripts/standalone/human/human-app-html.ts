@@ -1,4 +1,4 @@
-<!doctype html>
+export const htmlApp = `<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -461,6 +461,60 @@ canvas {
   text-align: center;
 }
 
+.import-panel {
+  padding: 18px;
+}
+
+.drop-zone {
+  border: 2px dashed var(--line);
+  border-radius: 16px;
+  color: var(--muted);
+  background: rgba(255, 253, 248, 0.68);
+  padding: 34px 18px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.drop-zone:hover,
+.drop-zone.dragging {
+  border-color: var(--blue);
+  background: rgba(47, 111, 143, 0.09);
+}
+
+.import-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.import-actions .hint {
+  flex: 1;
+  margin: 0;
+}
+
+.path-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.result-card pre {
+  max-height: 420px;
+  overflow: auto;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: #25404c;
+  background: #f2f7f5;
+  padding: 14px;
+  font: 12px/1.55 "SFMono-Regular", "Cascadia Code", "JetBrains Mono", monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (max-width: 900px) {
   header {
     flex-wrap: wrap;
@@ -542,8 +596,24 @@ canvas {
   </aside>
 
   <section class="stage">
+    <section id="importPanel" class="card import-panel" hidden>
+      <h2>添加图片</h2>
+      <div id="dropZone" class="drop-zone">
+        拖放图片到这里, 或直接粘贴截图<br>
+        <small>支持 PNG / JPEG / GIF / WebP</small>
+      </div>
+      <div class="import-actions">
+        <button id="pickFilesBtn" class="ghost">选择图片</button>
+        <p class="hint" id="pasteHint">也可以从剪贴板直接粘贴截图</p>
+      </div>
+      <div class="path-row">
+        <input id="pathInput" placeholder="本机图片路径, 如 /Users/me/shot.png" autocomplete="off">
+        <button id="openPathBtn" class="ghost">打开路径</button>
+      </div>
+      <input id="fileInput" type="file" accept="image/*" multiple hidden>
+    </section>
     <div class="tabs" id="tabs"></div>
-    <div class="canvas-card">
+    <div class="canvas-card" id="canvasCard">
       <div class="canvas-toolbar">
         <span id="imageMeta"></span>
         <span class="spacer"></span>
@@ -557,15 +627,23 @@ canvas {
         </span>
         <button id="undoBtn">撤销</button>
         <button id="clearBtn">清空</button>
+        <button id="removeImageBtn">移除</button>
       </div>
       <div class="canvas-wrap" id="canvasWrap">
         <canvas id="canvas"></canvas>
       </div>
       <div class="status" id="status">正在加载图片</div>
     </div>
-    <section class="annotation-list">
+    <section class="annotation-list" id="annotationList">
       <h2>区域列表</h2>
       <div id="annotations" class="annotations"></div>
+    </section>
+    <section id="resultCard" class="card result-card" hidden>
+      <h2>结果 JSON 预览</h2>
+      <pre id="resultJson"></pre>
+      <div class="row">
+        <button id="copyJsonBtn" class="ghost">复制 JSON</button>
+      </div>
     </section>
   </section>
 </main>
@@ -596,6 +674,18 @@ const annotationsEl = document.getElementById("annotations");
 const zoomLabel = document.getElementById("zoomLabel");
 const countdownEl = document.getElementById("countdown");
 const extendBtn = document.getElementById("extendBtn");
+const importPanel = document.getElementById("importPanel");
+const dropZone = document.getElementById("dropZone");
+const pickFilesBtn = document.getElementById("pickFilesBtn");
+const fileInput = document.getElementById("fileInput");
+const pathInput = document.getElementById("pathInput");
+const openPathBtn = document.getElementById("openPathBtn");
+const canvasCard = document.getElementById("canvasCard");
+const annotationList = document.getElementById("annotationList");
+const resultCard = document.getElementById("resultCard");
+const resultJson = document.getElementById("resultJson");
+const copyJsonBtn = document.getElementById("copyJsonBtn");
+const removeImageBtn = document.getElementById("removeImageBtn");
 
 const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 10;
@@ -606,6 +696,7 @@ const state = {
   meta: null,
   images: [],
   activeIndex: 0,
+  serveMode: false,
   tool: "select",
   zoom: 1,
   offsetX: 0,
@@ -625,6 +716,126 @@ function activeImage() {
   return state.images[state.activeIndex];
 }
 
+function makeImageItem(meta) {
+  const item = { meta, image: null, notes: [], regions: [] };
+  const image = new Image();
+  image.decoding = "async";
+  image.onload = () => {
+    item.image = image;
+    if (activeImage() === item) {
+      resizeCanvas();
+    }
+  };
+  image.onerror = () => {
+    statusEl.textContent = \`图片加载失败: \${meta.name || basename(meta.path)}\`;
+  };
+  image.src = \`/api/image/\${meta.id}?token=\${encodeURIComponent(token)}\`;
+  return item;
+}
+
+function appendMeta(meta) {
+  state.meta.images.push(meta);
+  state.images.push(makeImageItem(meta));
+  importPanel.hidden = true;
+  canvasCard.hidden = false;
+  annotationList.hidden = false;
+  saveBtn.disabled = false;
+  cancelBtn.disabled = false;
+  removeImageBtn.disabled = false;
+  renderTabs();
+  setActive(state.images.length - 1);
+}
+
+function showEmpty() {
+  state.activeIndex = -1;
+  state.selectedId = null;
+  state.draft = null;
+  canvasCard.hidden = true;
+  annotationList.hidden = true;
+  importPanel.hidden = false;
+  saveBtn.disabled = true;
+  cancelBtn.disabled = true;
+  removeImageBtn.disabled = true;
+  statusEl.textContent = "暂无图片, 可粘贴截图, 拖放文件或输入本机路径";
+  renderTabs();
+}
+
+async function uploadFiles(files) {
+  let added = 0;
+  for (const file of files) {
+    if (!file.type.startsWith("image/")) {
+      continue;
+    }
+    const form = new FormData();
+    form.append("file", file, file.name || "paste.png");
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      headers: { "x-lookit-token": token },
+      body: form,
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "上传图片失败");
+    }
+    appendMeta(result.meta);
+    added += 1;
+  }
+  if (added) {
+    pathInput.value = "";
+    statusEl.textContent = \`已添加 \${added} 张图片\`;
+  } else {
+    statusEl.textContent = "没有找到可添加的图片文件";
+  }
+}
+
+async function openPath() {
+  const requestedPath = pathInput.value.trim();
+  if (!requestedPath) {
+    statusEl.textContent = "请输入图片路径";
+    return;
+  }
+  const response = await fetch("/api/open-path", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-lookit-token": token,
+    },
+    body: JSON.stringify({ path: requestedPath }),
+  });
+  const result = await response.json();
+  if (!response.ok || !result.ok) {
+    statusEl.textContent = result.error || "打开图片失败";
+    return;
+  }
+  pathInput.value = "";
+  appendMeta(result.meta);
+}
+
+async function removeActiveImage() {
+  const index = state.activeIndex;
+  const item = activeImage();
+  if (!item) {
+    return;
+  }
+  const response = await fetch(\`/api/image/\${encodeURIComponent(item.meta.id)}\`, {
+    method: "DELETE",
+    headers: { "x-lookit-token": token },
+  });
+  const result = await response.json();
+  if (!response.ok || !result.ok) {
+    statusEl.textContent = result.error || "移除图片失败";
+    return;
+  }
+  state.meta.images.splice(index, 1);
+  state.images.splice(index, 1);
+  if (!state.images.length) {
+    showEmpty();
+    return;
+  }
+  state.activeIndex = Math.min(index, state.images.length - 1);
+  setActive(state.activeIndex);
+}
+
 function clampZoom(value) {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
 }
@@ -638,11 +849,11 @@ function cssSize() {
 }
 
 function updateZoomLabel() {
-  zoomLabel.textContent = `${Math.round(state.zoom * 100)}%`;
+  zoomLabel.textContent = \`\${Math.round(state.zoom * 100)}%\`;
 }
 
 function basename(path) {
-  return path.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || path;
+  return path.replace(/[\\\\/]+$/, "").split(/[\\\\/]/).pop() || path;
 }
 
 function escapeHtml(value) {
@@ -654,7 +865,7 @@ function escapeHtml(value) {
 
 function renderLabels() {
   labelOptions.innerHTML = state.meta.labels
-    .map((label) => `<option value="${escapeHtml(label)}"></option>`)
+    .map((label) => \`<option value="\${escapeHtml(label)}"></option>\`)
     .join("");
   labelInput.value = "";
 }
@@ -664,10 +875,17 @@ function renderTabs() {
   state.meta.images.forEach((meta, index) => {
     const button = document.createElement("button");
     button.className = index === state.activeIndex ? "tab active" : "tab";
-    button.textContent = `${index + 1}. ${basename(meta.path)}`;
+    button.textContent = \`\${index + 1}. \${meta.name || basename(meta.path)}\`;
     button.addEventListener("click", () => setActive(index));
     tabsEl.appendChild(button);
   });
+  const add = document.createElement("button");
+  add.className = "tab";
+  add.textContent = "+ 添加";
+  add.addEventListener("click", () => {
+    importPanel.hidden = false;
+  });
+  tabsEl.appendChild(add);
 }
 
 function captureImageNotes() {
@@ -676,7 +894,7 @@ function captureImageNotes() {
     return;
   }
   item.notes = imageNote.value
-    .split(/\r?\n/)
+    .split(/\\r?\\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 }
@@ -684,10 +902,14 @@ function captureImageNotes() {
 function setActive(index) {
   captureImageNotes();
   state.activeIndex = index;
+  const item = activeImage();
+  if (!item) {
+    return;
+  }
   state.selectedId = null;
   state.draft = null;
-  imageNote.value = activeImage().notes.join("\n");
-  imageMetaEl.textContent = `${basename(activeImage().meta.path)} ${activeImage().meta.width}x${activeImage().meta.height}`;
+  imageNote.value = item.notes.join("\\n");
+  imageMetaEl.textContent = \`\${item.meta.name || basename(item.meta.path)} \${item.meta.width}x\${item.meta.height}\`;
   fitView();
   updateZoomLabel();
   draw();
@@ -709,8 +931,8 @@ function resizeCanvas() {
   state.dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(size.width * state.dpr);
   canvas.height = Math.round(size.height * state.dpr);
-  canvas.style.width = `${size.width}px`;
-  canvas.style.height = `${size.height}px`;
+  canvas.style.width = \`\${size.width}px\`;
+  canvas.style.height = \`\${size.height}px\`;
   ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
   fitView();
   draw();
@@ -995,7 +1217,7 @@ function drawRegion(region) {
   ctx.save();
   ctx.strokeStyle = selected ? "#1d4e6b" : region.color;
   ctx.lineWidth = selected ? 4 : 2;
-  ctx.fillStyle = selected ? `${region.color}44` : `${region.color}22`;
+  ctx.fillStyle = selected ? \`\${region.color}44\` : \`\${region.color}22\`;
   if (selected) {
     ctx.shadowColor = "rgba(29, 78, 107, 0.55)";
     ctx.shadowBlur = 12;
@@ -1050,7 +1272,7 @@ function drawRegion(region) {
     const topLeft = toScreen({ x: region.box.x1, y: region.box.y1 });
     const size = cssSize();
     const labelHeight = 20;
-    ctx.font = "600 12px \"Avenir Next\", \"PingFang SC\", sans-serif";
+    ctx.font = "600 12px \\"Avenir Next\\", \\"PingFang SC\\", sans-serif";
     const textWidth = ctx.measureText(text).width;
     const maxLabelX = Math.max(0, size.width - textWidth - 16);
     const labelX = Math.max(0, Math.min(topLeft.x, maxLabelX));
@@ -1197,10 +1419,10 @@ function renderAnnotations() {
     const row = document.createElement("button");
     row.className = region.id === state.selectedId ? "annotation selected" : "annotation";
     row.innerHTML =
-      `<span class="dot" style="background:${region.color}"></span>` +
-      `<span class="meta"><strong>${escapeHtml(region.label)}</strong>` +
-      `<code>${region.box.x1},${region.box.y1},${region.box.x2},${region.box.y2}</code>` +
-      `<small>${escapeHtml(region.note || "无说明")}</small></span>`;
+      \`<span class="dot" style="background:\${region.color}"></span>\` +
+      \`<span class="meta"><strong>\${escapeHtml(region.label)}</strong>\` +
+      \`<code>\${region.box.x1},\${region.box.y1},\${region.box.x2},\${region.box.y2}</code>\` +
+      \`<small>\${escapeHtml(region.note || "无说明")}</small></span>\`;
     row.addEventListener("click", () => selectRegion(region.id));
     annotationsEl.appendChild(row);
   });
@@ -1336,7 +1558,7 @@ function updateStatus(imagePoint) {
   const x = Math.max(0, Math.min(item.meta.width, Math.round(imagePoint.x)));
   const y = Math.max(0, Math.min(item.meta.height, Math.round(imagePoint.y)));
   updateZoomLabel();
-  statusEl.textContent = `坐标 ${x}, ${y}`;
+  statusEl.textContent = \`坐标 \${x}, \${y}\`;
 }
 
 function zoomAt(screenPoint, factor) {
@@ -1383,7 +1605,7 @@ function updateCountdown() {
   const remaining = Math.max(0, Math.ceil((state.deadline - Date.now()) / 1000));
   const minutes = String(Math.floor(remaining / 60)).padStart(2, "0");
   const seconds = String(remaining % 60).padStart(2, "0");
-  countdownEl.textContent = `剩余 ${minutes}:${seconds}`;
+  countdownEl.textContent = \`剩余 \${minutes}:\${seconds}\`;
   countdownEl.classList.toggle("urgent", remaining <= 60);
   extendBtn.hidden = false;
 }
@@ -1406,7 +1628,7 @@ async function extendTimeout() {
     state.timeoutSeconds = result.timeoutSeconds;
     updateCountdown();
   } catch (error) {
-    statusEl.textContent = `延长失败: ${error.message}`;
+    statusEl.textContent = \`延长失败: \${error.message}\`;
   }
 }
 
@@ -1429,6 +1651,43 @@ document.getElementById("zoomFitBtn").addEventListener("click", () => {
 document.getElementById("zoom100Btn").addEventListener("click", () => setZoomCentered(1));
 document.getElementById("zoom10Btn").addEventListener("click", () => setZoomCentered(10));
 extendBtn.addEventListener("click", extendTimeout);
+removeImageBtn.addEventListener("click", removeActiveImage);
+pickFilesBtn.addEventListener("click", () => fileInput.click());
+dropZone.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => {
+  uploadFiles(fileInput.files).catch((error) => {
+    statusEl.textContent = \`添加失败: \${error.message}\`;
+  });
+  fileInput.value = "";
+});
+dropZone.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  dropZone.classList.add("dragging");
+});
+dropZone.addEventListener("dragleave", () => {
+  dropZone.classList.remove("dragging");
+});
+dropZone.addEventListener("drop", (event) => {
+  event.preventDefault();
+  dropZone.classList.remove("dragging");
+  uploadFiles(event.dataTransfer.files).catch((error) => {
+    statusEl.textContent = \`添加失败: \${error.message}\`;
+  });
+});
+openPathBtn.addEventListener("click", openPath);
+pathInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    openPath();
+  }
+});
+copyJsonBtn.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(resultJson.textContent);
+    statusEl.textContent = "结果 JSON 已复制";
+  } catch (error) {
+    statusEl.textContent = \`复制失败: \${error.message}\`;
+  }
+});
 
 canvas.addEventListener("pointerdown", (event) => {
   const item = activeImage();
@@ -1659,6 +1918,34 @@ canvas.addEventListener("wheel", (event) => {
 
 canvas.addEventListener("contextmenu", (event) => event.preventDefault());
 
+document.addEventListener("paste", (event) => {
+  const target = event.target;
+  const isEditable =
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLElement && target.isContentEditable);
+  if (isEditable) {
+    return;
+  }
+  const items = event.clipboardData?.items || [];
+  const files = [];
+  for (const item of items) {
+    if (item.kind === "file" && item.type.startsWith("image/")) {
+      const file = item.getAsFile();
+      if (file) {
+        files.push(file);
+      }
+    }
+  }
+  if (files.length) {
+    event.preventDefault();
+    uploadFiles(files).catch((error) => {
+      statusEl.textContent = \`粘贴图片失败: \${error.message}\`;
+    });
+  }
+});
+
 document.addEventListener("keydown", (event) => {
   const target = event.target;
   const isEditable =
@@ -1721,7 +2008,7 @@ document.addEventListener("keyup", (event) => {
 });
 
 saveBtn.addEventListener("click", async () => {
-  if (submitted) {
+  if (submitted && !state.serveMode) {
     return;
   }
   captureImageNotes();
@@ -1747,6 +2034,15 @@ saveBtn.addEventListener("click", async () => {
     if (!response.ok || !result.ok) {
       throw new Error(result.error || "提交失败");
     }
+    if (state.serveMode) {
+      resultCard.hidden = false;
+      resultJson.textContent = JSON.stringify(result.submission, null, 2);
+      saveBtn.textContent = "再次提交";
+      cancelBtn.disabled = false;
+      statusEl.textContent = \`已提交 #\${result.counter}, 结果 JSON 预览已生成\`;
+      submitted = false;
+      return;
+    }
     submitted = true;
     saveBtn.textContent = "已提交";
     cancelBtn.disabled = true;
@@ -1761,21 +2057,36 @@ saveBtn.addEventListener("click", async () => {
   } catch (error) {
     saveBtn.disabled = false;
     saveBtn.textContent = "保存并结束";
-    statusEl.textContent = `提交失败: ${error.message}`;
+    statusEl.textContent = \`提交失败: \${error.message}\`;
   }
 });
 
 cancelBtn.addEventListener("click", async () => {
-  if (submitted) {
+  if (submitted && !state.serveMode) {
     return;
   }
   try {
-    await fetch("/api/cancel", {
+    const response = await fetch("/api/cancel", {
       method: "POST",
       headers: { "x-lookit-token": token },
     });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "取消失败");
+    }
   } catch {
     // The server may already be stopping.
+  }
+  if (state.serveMode) {
+    captureImageNotes();
+    state.images = [];
+    state.meta.images = [];
+    conclusion.value = "";
+    resultCard.hidden = true;
+    showEmpty();
+    saveBtn.textContent = "提交结果";
+    statusEl.textContent = "已清空, 可以开始新的一轮";
+    return;
   }
   submitted = true;
   saveBtn.disabled = true;
@@ -1791,7 +2102,7 @@ cancelBtn.addEventListener("click", async () => {
 });
 
 window.addEventListener("beforeunload", (event) => {
-  if (!submitted) {
+  if (!state.serveMode && !submitted) {
     event.preventDefault();
     event.returnValue = "";
   }
@@ -1806,42 +2117,42 @@ async function init() {
     cancelBtn.disabled = true;
     return;
   }
-  const response = await fetch(`/api/meta?token=${encodeURIComponent(token)}`);
+  const response = await fetch(\`/api/meta?token=\${encodeURIComponent(token)}\`);
   if (!response.ok) {
     throw new Error("无法读取审查任务");
   }
   state.meta = await response.json();
+  state.serveMode = Boolean(state.meta.serveMode);
   taskEl.textContent = state.meta.task;
   state.timeoutSeconds = state.meta.timeoutSeconds || 0;
   state.deadline = state.meta.deadline ? Date.parse(state.meta.deadline) : null;
   updateCountdown();
   setInterval(updateCountdown, 1000);
   renderLabels();
-  state.meta.images.forEach((meta, index) => {
-    const item = { meta, image: null, notes: [], regions: [] };
-    const image = new Image();
-    image.decoding = "async";
-    image.onload = () => {
-      item.image = image;
-      if (state.activeIndex === index) {
-        resizeCanvas();
-      }
-    };
-    image.onerror = () => {
-      statusEl.textContent = `图片加载失败: ${basename(meta.path)}`;
-    };
-    image.src = `/api/image/${index}?token=${encodeURIComponent(token)}`;
-    state.images.push(item);
-  });
-  renderTabs();
-  setActive(0);
+  saveBtn.textContent = state.serveMode ? "提交结果" : "保存并结束";
+  cancelBtn.textContent = state.serveMode ? "清空" : "取消";
+  if (state.serveMode) {
+    extendBtn.hidden = true;
+    countdownEl.textContent = "";
+  }
+  if (state.meta.images.length) {
+    state.images = state.meta.images.map(makeImageItem);
+    renderTabs();
+    setActive(0);
+    saveBtn.disabled = false;
+    cancelBtn.disabled = false;
+    removeImageBtn.disabled = false;
+  } else {
+    showEmpty();
+  }
 }
 
 init().catch((error) => {
-  statusEl.textContent = `初始化失败: ${error.message}`;
+  statusEl.textContent = \`初始化失败: \${error.message}\`;
   saveBtn.disabled = true;
   cancelBtn.disabled = true;
 });
 </script>
 </body>
 </html>
+`;

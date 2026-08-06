@@ -14,7 +14,8 @@ deps:
 # just check
 # 编译全部 CLI 并检查帮助信息.
 check:
-    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/model_svg.ts scripts/dominant_colors.ts scripts/pixel_diff.ts scripts/ascii.ts scripts/human.ts scripts/crop.ts scripts/extract_fg.ts scripts/html_shot.ts --outdir /tmp/lookit-build
+    bun run scripts/standalone/human/build-human-app.ts
+    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/model_svg.ts scripts/dominant_colors.ts scripts/pixel_diff.ts scripts/ascii.ts scripts/human.ts scripts/standalone/human/human_cli.ts scripts/crop.ts scripts/extract_fg.ts scripts/html_shot.ts --outdir /tmp/lookit-build
     bun run scripts/glance.ts --help
     bun run scripts/ground.ts --help
     bun run scripts/detect.ts --help
@@ -24,14 +25,33 @@ check:
     bun run scripts/pixel_diff.ts --help
     bun run scripts/ascii.ts --help
     bun run scripts/human.ts --help
+    bun run scripts/standalone/human/human_cli.ts --help
     bun run scripts/crop.ts --help
     bun run scripts/extract_fg.ts --help
     bun run scripts/html_shot.ts --help
+    bun build --compile scripts/standalone/human/human_cli.ts --outfile /tmp/lookit-human-check
 
 # just build
 # 编译全部 CLI 到 /tmp/lookit-build.
 build:
-    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/model_svg.ts scripts/dominant_colors.ts scripts/pixel_diff.ts scripts/ascii.ts scripts/human.ts scripts/crop.ts scripts/extract_fg.ts scripts/html_shot.ts --outdir /tmp/lookit-build
+    bun build --target=bun scripts/glance.ts scripts/ground.ts scripts/detect.ts scripts/trace.ts scripts/model_svg.ts scripts/dominant_colors.ts scripts/pixel_diff.ts scripts/ascii.ts scripts/human.ts scripts/standalone/human/human_cli.ts scripts/crop.ts scripts/extract_fg.ts scripts/html_shot.ts --outdir /tmp/lookit-build
+
+# just build-human-app
+# 从 standalone/human/human-app.html 生成内嵌 HTML 模块.
+build-human-app:
+    bun run scripts/standalone/human/build-human-app.ts
+
+# just build-human
+# 编译独立 human CLI 到项目根目录 dist/human.
+build-human: build-human-app
+    @mkdir -p dist
+    bun build --compile scripts/standalone/human/human_cli.ts --outfile dist/human
+
+# just install-human
+# 编译独立 human CLI 并安装到 ~/.local/bin/human.
+install-human: build-human
+    @mkdir -p "$${HOME}/.local/bin"
+    @install -m 755 dist/human "$${HOME}/.local/bin/human"
 
 # just glance <图片> [参数]
 # 使用 glance 描述/提问/OCR 图片.

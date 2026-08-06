@@ -12,9 +12,14 @@
     "pixel-diff": "bun run scripts/pixel_diff.ts",
     "ascii": "bun run scripts/ascii.ts",
     "human": "bun run scripts/human.ts",
+    "human-cli": "bun run scripts/standalone/human/human_cli.ts",
+    "build-human-app": "bun run scripts/standalone/human/build-human-app.ts",
     "crop": "bun run scripts/crop.ts",
     "extract-fg": "bun run scripts/extract_fg.ts",
     "html-shot": "bun run scripts/html_shot.ts"
+  },
+  "bin": {
+    "human": "scripts/standalone/human/human_cli.ts"
   },
   "dependencies": {
     "@visioncortex/vtracer": "^1.0.0-alpha.3",
