@@ -232,6 +232,7 @@ human --once <image>                                       # 独立 CLI 一次�
 - 只支持 PNG / JPEG / GIF / WebP 图片.
 - 如果命令不存在, 说明可选工具未安装; 报告给用户, 不要临时用其他工具替代.
 - 如果视觉 API 失败, 如实报告错误, 绝不编造图片内容.
+- 如果会话中粘贴的图片内容被标记移除, 并且你不清楚图片存放的位置, 那么可以查看 agent harenss 会话中图片 base64 内容存储并提取出来, 比如 codex 会话会提供 API 访问当前会话中的内容, 或者查看当前会话的 jsonl 文件, 借此可以提取出图片.
 
 来源仓库: https://github.com/Anionex/codex-vision-proxy
 
