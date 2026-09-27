@@ -17,21 +17,21 @@
 
 - `detect`/`ground` 的 box 常有偏移或偏小, 实测偏 5-10px 很常见, 个别元素会被裁掉一半. 拿 box 做裁剪或定位时, 先每边外扩 8-10px (2x 原图) 再按 ink 边界收紧; 同一批裁剪完拼成 contact sheet 目检.
 - 一切对比都对照原图, 拿自己渲染的两版互相对比不算数.
-- 字体渲染差异是固有噪声 (Helvetica/Arial 与系统 SF Pro 等); 非精确直接接受, 精确做 pixel_diff 时把它当已知噪声.
+- 字体渲染差异是固有噪声 (Helvetica/Arial 与系统 SF Pro 等); 非精确直接接受, 精确做 pixel-diff 时把它当已知噪声.
 - 截图可能是 HiDPI (常见 2x). `detect`/`ground`/`crop` 返回原图像素, 换算成 HTML 逻辑尺寸前先确认原图尺寸与页面逻辑尺寸的比值, 否则整体布局会偏移一个量级.
 - 图标/图片是私有的, 能用原图就用原图. 截图里的图标不要上网搜替代图, 也不要自己做一个替代的; 先从原图里提取, 只有确实截不出来时才谈替代.
 - 用 `detect` 给的坐标组织画布, 不要自己重想坐标. 注意 HiDPI 比例和 box 外扩.
 
 ### 从截图提取图标前景 (不要直接按 box crop)
 
-直接按 `detect`/`ground` 的 box `crop` 会混入相邻内容. 用 `extract_fg`:
+直接按 `detect`/`ground` 的 box `crop` 会混入相邻内容. 用 `extract-fg`:
 
 ```bash
-extract_fg shot.png --region X1,Y1,X2,Y2 -o icon.png
-extract_fg shot.png --region X1,Y1,X2,Y2 --mode dark
-crop shot.png --region X1,Y1,X2,Y2 --scale 4 -o icon4x.png
-extract_fg icon4x.png
-extract_fg icon4x.png --boxes 101,84,184,171
+lookit extract-fg shot.png --region X1,Y1,X2,Y2 -o icon.png
+lookit extract-fg shot.png --region X1,Y1,X2,Y2 --mode dark
+lookit crop shot.png --region X1,Y1,X2,Y2 --scale 4 -o icon4x.png
+lookit extract-fg icon4x.png
+lookit extract-fg icon4x.png --boxes 101,84,184,171
 ```
 
 方法: 区域内取彩色像素 (或暗色线条), 做 8 邻域连通分量分析, 保留所有足够大的分量 (>= 最大分量的 2%), 背景噪点自动分离, 输出透明背景 PNG 并打印精确 bbox. 抠图是像素级复制, 不降质; 图标再小也只是裁出来贴回去, 放大 4x 后定位/抠图不受尺寸影响. 只有用户明确要求 SVG/矢量交付时才手绘, 那属于 `restore-exact.md` 的精确流程.
@@ -40,4 +40,4 @@ extract_fg icon4x.png --boxes 101,84,184,171
 - 取色/搜索区域要收紧到目标本身, 宽松框住即可, 否则可能收进相邻元素.
 - 实心图标含白色镂空细节或浅色渐变底圈也适用; `--no-keep-whites` 可关闭内部白色保留.
 
-备选 (脚本不适用时): `ground` 定位 (放大 4x 再 ground), 或 `dominant_colors` 主色 union. 实测三种方法结果等价; HSV 色相区间法杂散分量多, 不推荐.
+备选 (脚本不适用时): `ground` 定位 (放大 4x 再 ground), 或 `dominant-colors` 主色 union. 实测三种方法结果等价; HSV 色相区间法杂散分量多, 不推荐.

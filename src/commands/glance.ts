@@ -1,4 +1,4 @@
-import { cropToDataUrl, describeImage, imagePathToDataUrl, VisionError } from "./vision-client.ts";
+import { cropToDataUrl, describeImage, imagePathToDataUrl, VisionError } from "../shared/vision-client.ts";
 
 type Options = {
   images: string[];
@@ -44,7 +44,7 @@ function parseArgv(argv: string[]): Options {
       options.ocr = arg.slice("--ocr=".length);
     } else if (arg === "--help" || arg === "-h") {
       console.error(
-        "用法: bun run scripts/glance.ts <图片>... [-q 问题 | --ocr [额外要求]] [--region X1,Y1,X2,Y2]",
+        "用法: lookit glance <图片>... [-q 问题 | --ocr [额外要求]] [--region X1,Y1,X2,Y2]",
       );
       process.exit(0);
     } else if (arg.startsWith("-") && arg !== "-") {
@@ -83,21 +83,21 @@ function buildPrompt(query: string | undefined, ocr: string | undefined, count: 
   return undefined;
 }
 
-async function main(): Promise<void> {
-  const options = parseArgv(process.argv.slice(2));
-  const region = options.region;
-  const urls = region
-    ? await Promise.all(options.images.map((path) => cropToDataUrl(path, region)))
-    : await Promise.all(options.images.map((path) => imagePathToDataUrl(path)));
-  const answer = await describeImage(
-    urls,
-    buildPrompt(options.query, options.ocr, urls.length),
-    undefined,
-    options.ocr === undefined,
-  );
-  console.log(answer);
+export async function run(argv: string[]): Promise<void> {
+  try {
+    const options = parseArgv(argv);
+    const region = options.region;
+    const urls = region
+      ? await Promise.all(options.images.map((path) => cropToDataUrl(path, region)))
+      : await Promise.all(options.images.map((path) => imagePathToDataUrl(path)));
+    const answer = await describeImage(
+      urls,
+      buildPrompt(options.query, options.ocr, urls.length),
+      undefined,
+      options.ocr === undefined,
+    );
+    console.log(answer);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+  }
 }
-
-void main().catch((error) => {
-  fail(error instanceof Error ? error.message : String(error));
-});

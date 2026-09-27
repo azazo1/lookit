@@ -9,7 +9,7 @@ import {
   parseRegion,
   type Box,
   type Rgb,
-} from "./image-utils.ts";
+} from "../shared/image-utils.ts";
 
 type Options = {
   image: string;
@@ -33,7 +33,7 @@ type PickRow = {
 };
 
 function fail(message: string): never {
-  console.error(`dominant_colors: ${message}`);
+  console.error(`dominant-colors: ${message}`);
   process.exit(1);
 }
 
@@ -95,7 +95,7 @@ function parseArgv(argv: string[]): Options {
       options.tol = integerValue(arg.slice("--tol=".length), "--tol");
     } else if (arg === "--help" || arg === "-h") {
       console.error(
-        "用法: bun run scripts/dominant_colors.ts <图片> [--region X1,Y1,X2,Y2] [--candidates #RRGGBB,...] [--top N] [--quantize N] [--max-pixels N] [--merge-tol N] [--tol N]",
+        "用法: lookit dominant-colors <图片> [--region X1,Y1,X2,Y2] [--candidates #RRGGBB,...] [--top N] [--quantize N] [--max-pixels N] [--merge-tol N] [--tol N]",
       );
       process.exit(0);
     } else if (arg.startsWith("-") && arg !== "-") {
@@ -339,36 +339,36 @@ function formatPick(rows: PickRow[], winner: PickRow, closest: PickRow, box: Box
   return lines;
 }
 
-async function main(): Promise<void> {
-  const options = parseArgv(process.argv.slice(2));
-  if (!existsSync(options.image)) {
-    fail(`图片不存在: ${options.image}`);
-  }
-  const { width, height } = await imageSize(options.image);
-  const box = options.region ? parseRegion(options.region, width, height) : { x1: 0, y1: 0, x2: width, y2: height };
-  if (options.candidates !== undefined) {
-    const candidates = options.candidates
-      .split(",")
-      .map((candidate) => candidate.trim())
-      .filter(Boolean);
-    if (!candidates.length) {
-      fail("--candidates 至少需要一个 #RRGGBB");
+export async function run(argv: string[]): Promise<void> {
+  try {
+    const options = parseArgv(argv);
+    if (!existsSync(options.image)) {
+      fail(`图片不存在: ${options.image}`);
     }
-    const { rows, winner, closest } = await pick(options.image, box, candidates, options.tol);
-    console.log(formatPick(rows, winner, closest, box, options.tol).join("\n"));
-  } else {
-    const { clusters } = await extract(
-      options.image,
-      box,
-      options.top,
-      options.quantize,
-      options.maxPixels,
-      options.mergeTol,
-    );
-    console.log(formatExtract(clusters, options.top, box, options.mergeTol).join("\n"));
+    const { width, height } = await imageSize(options.image);
+    const box = options.region ? parseRegion(options.region, width, height) : { x1: 0, y1: 0, x2: width, y2: height };
+    if (options.candidates !== undefined) {
+      const candidates = options.candidates
+        .split(",")
+        .map((candidate) => candidate.trim())
+        .filter(Boolean);
+      if (!candidates.length) {
+        fail("--candidates 至少需要一个 #RRGGBB");
+      }
+      const { rows, winner, closest } = await pick(options.image, box, candidates, options.tol);
+      console.log(formatPick(rows, winner, closest, box, options.tol).join("\n"));
+    } else {
+      const { clusters } = await extract(
+        options.image,
+        box,
+        options.top,
+        options.quantize,
+        options.maxPixels,
+        options.mergeTol,
+      );
+      console.log(formatExtract(clusters, options.top, box, options.mergeTol).join("\n"));
+    }
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
   }
 }
-
-void main().catch((error) => {
-  fail(error instanceof Error ? error.message : String(error));
-});

@@ -12,8 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { htmlApp as generatedHtmlApp } from "./human-app-html.ts";
-import { readImageSize } from "./human-image.ts";
+import { readImageSize } from "./image.ts";
 
 const DEFAULT_TASK = "请查看图片, 用区域框选和文字注解补充模型无法确认的信息.";
 const DEFAULT_LABELS = ["重要", "问题", "文字", "按钮", "区域"];
@@ -177,7 +176,7 @@ function parseArgv(argv: string[], defaultServe: boolean): Options {
       options.output = arg.slice("--output=".length);
     } else if (arg === "--help" || arg === "-h") {
       console.error(
-        "用法: human [<图片> ...] [--serve | --once] " +
+        "用法: lookit human [<图片> ...] [--serve | --once] " +
           "[--host 127.0.0.1] [--port 0] [--task 问题] [--labels 标签1,标签2] " +
           "[--output 注解.json] [--json | --text] [--timeout 秒数] [--no-open]",
       );
@@ -412,13 +411,8 @@ function cleanupUpload(meta: ImageMeta | undefined): void {
 export async function runHuman(argv: string[], runOptions: RunOptions = {}): Promise<void> {
   const options = parseArgv(argv, runOptions.defaultServe ?? false);
   let metas = await loadImageMetas(options.images);
-  let htmlSource = generatedHtmlApp;
-  try {
-    const htmlPath = join(dirname(fileURLToPath(import.meta.url)), "human-app.html");
-    htmlSource = readFileSync(htmlPath, "utf8");
-  } catch {
-    // The compiled CLI carries the generated HTML copy.
-  }
+  const htmlPath = join(dirname(fileURLToPath(import.meta.url)), "app.html");
+  const htmlSource = readFileSync(htmlPath, "utf8");
   const uploadRoot = mkdtempSync(join(tmpdir(), "lookit-human-"));
   process.once("exit", () => {
     try {
@@ -677,10 +671,4 @@ export async function runHuman(argv: string[], runOptions: RunOptions = {}): Pro
     fail(`等待人工审查超时 (${timeoutSeconds} 秒), 未获得注解`);
   }
   printSubmission(outcome.data, options);
-}
-
-if (import.meta.main) {
-  void runHuman(process.argv.slice(2)).catch((error) => {
-    fail(error instanceof Error ? error.message : String(error));
-  });
 }

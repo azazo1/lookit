@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
-import { cropToDataUrl, describeImage, imagePathToDataUrl } from "./vision-client.ts";
-import { imageSize, parseRegion } from "./image-utils.ts";
+import { cropToDataUrl, describeImage, imagePathToDataUrl } from "../shared/vision-client.ts";
+import { imageSize, parseRegion } from "../shared/image-utils.ts";
 
 type Options = {
   image: string;
@@ -41,7 +41,7 @@ function parseArgv(argv: string[]): Options {
       options.output = arg.slice("--output=".length);
     } else if (arg === "--help" || arg === "-h") {
       console.error(
-        "用法: bun run scripts/model_svg.ts <图片> [--region X1,Y1,X2,Y2] " +
+        "用法: lookit model-svg <图片> [--region X1,Y1,X2,Y2] " +
           "[--instruction 额外要求] [-o 输出.svg]",
       );
       process.exit(0);
@@ -143,31 +143,31 @@ function validateSvg(svg: string): void {
   }
 }
 
-async function main(): Promise<void> {
-  const options = parseArgv(process.argv.slice(2));
-  if (!existsSync(options.image)) {
-    fail(`图片不存在: ${options.image}`);
-  }
-  const fullSize = await imageSize(options.image);
-  const box = options.region ? parseRegion(options.region, fullSize.width, fullSize.height) : undefined;
-  const width = box ? box.x2 - box.x1 : fullSize.width;
-  const height = box ? box.y2 - box.y1 : fullSize.height;
-  const imageUrl = box
-    ? await cropToDataUrl(options.image, options.region as string)
-    : await imagePathToDataUrl(options.image);
+export async function run(argv: string[]): Promise<void> {
+  try {
+    const options = parseArgv(argv);
+    if (!existsSync(options.image)) {
+      fail(`图片不存在: ${options.image}`);
+    }
+    const fullSize = await imageSize(options.image);
+    const box = options.region ? parseRegion(options.region, fullSize.width, fullSize.height) : undefined;
+    const width = box ? box.x2 - box.x1 : fullSize.width;
+    const height = box ? box.y2 - box.y1 : fullSize.height;
+    const imageUrl = box
+      ? await cropToDataUrl(options.image, options.region as string)
+      : await imagePathToDataUrl(options.image);
 
-  console.error(`model-svg: 正在请求视觉模型 (${width}x${height})...`);
-  const raw = await describeImage(imageUrl, buildPrompt(width, height, options.instruction), MAX_TOKENS, false);
-  console.error("model-svg: 正在提取并校验 SVG...");
-  const svg = extractSvg(raw);
-  if (options.output) {
-    await Bun.write(options.output, svg);
-    console.error(`model-svg: 已写入 ${options.output} (${svg.length} 字节)`);
-  } else {
-    process.stdout.write(svg);
+    console.error(`model-svg: 正在请求视觉模型 (${width}x${height})...`);
+    const raw = await describeImage(imageUrl, buildPrompt(width, height, options.instruction), MAX_TOKENS, false);
+    console.error("model-svg: 正在提取并校验 SVG...");
+    const svg = extractSvg(raw);
+    if (options.output) {
+      await Bun.write(options.output, svg);
+      console.error(`model-svg: 已写入 ${options.output} (${svg.length} 字节)`);
+    } else {
+      process.stdout.write(svg);
+    }
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
   }
 }
-
-void main().catch((error) => {
-  fail(error instanceof Error ? error.message : String(error));
-});

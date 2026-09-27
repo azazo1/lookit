@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { imageSize, loadRgba, parseRegion } from "./image-utils.ts";
+import { imageSize, loadRgba, parseRegion } from "../shared/image-utils.ts";
 
 type Size = { width: number; height: number };
 
@@ -60,7 +60,7 @@ function parseArgv(argv: string[]): Options {
       options.region = arg.slice("--region=".length);
     } else if (arg === "--help" || arg === "-h") {
       console.error(
-        "用法: bun run scripts/ascii.ts <图片> [<对比图片>] " +
+        "用法: lookit ascii <图片> [<对比图片>] " +
           "[--width N] [--height N] [--threshold 0-255] [--region X1,Y1,X2,Y2]",
       );
       process.exit(0);
@@ -130,36 +130,36 @@ function printCompare(first: string[], second: string[]): void {
   }
 }
 
-async function main(): Promise<void> {
-  const options = parseArgv(process.argv.slice(2));
-  for (const path of options.images) {
-    if (!existsSync(path)) {
-      fail(`图片不存在: ${path}`);
+export async function run(argv: string[]): Promise<void> {
+  try {
+    const options = parseArgv(argv);
+    for (const path of options.images) {
+      if (!existsSync(path)) {
+        fail(`图片不存在: ${path}`);
+      }
     }
-  }
-  const firstSize = await imageSize(options.images[0]);
-  const firstBox = options.region ? parseRegion(options.region, firstSize.width, firstSize.height) : undefined;
-  const source: Size = firstBox
-    ? { width: firstBox.x2 - firstBox.x1, height: firstBox.y2 - firstBox.y1 }
-    : firstSize;
-  const target = targetSize(source, options.width, options.height);
-  if (options.width === undefined && options.height === undefined &&
-      (source.width > MAX_DEFAULT_SIDE || source.height > MAX_DEFAULT_SIDE)) {
-    console.error(`提示: 图片已缩放到 ${target.width}x${target.height}, 用 --width/--height 指定网格大小`);
-  }
-  const grids: string[][] = [];
-  for (const path of options.images) {
-    grids.push(await loadGrid(path, options.region, target, options.threshold));
-  }
-  if (grids.length === 1) {
-    for (const row of grids[0]) {
-      console.log(row);
+    const firstSize = await imageSize(options.images[0]);
+    const firstBox = options.region ? parseRegion(options.region, firstSize.width, firstSize.height) : undefined;
+    const source: Size = firstBox
+      ? { width: firstBox.x2 - firstBox.x1, height: firstBox.y2 - firstBox.y1 }
+      : firstSize;
+    const target = targetSize(source, options.width, options.height);
+    if (options.width === undefined && options.height === undefined &&
+        (source.width > MAX_DEFAULT_SIDE || source.height > MAX_DEFAULT_SIDE)) {
+      console.error(`提示: 图片已缩放到 ${target.width}x${target.height}, 用 --width/--height 指定网格大小`);
     }
-  } else {
-    printCompare(grids[0], grids[1]);
+    const grids: string[][] = [];
+    for (const path of options.images) {
+      grids.push(await loadGrid(path, options.region, target, options.threshold));
+    }
+    if (grids.length === 1) {
+      for (const row of grids[0]) {
+        console.log(row);
+      }
+    } else {
+      printCompare(grids[0], grids[1]);
+    }
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
   }
 }
-
-void main().catch((error) => {
-  fail(error instanceof Error ? error.message : String(error));
-});

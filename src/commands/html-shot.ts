@@ -25,7 +25,7 @@ const CHROME_CANDIDATES = [
 ];
 
 function fail(message: string): never {
-  console.error(`html_shot: ${message}`);
+  console.error(`html-shot: ${message}`);
   process.exit(1);
 }
 
@@ -121,7 +121,7 @@ function parseArgv(argv: string[]): Options {
       options.waitMs = integerValue(arg.slice("--wait-ms=".length), "--wait-ms", 0);
     } else if (arg === "--help" || arg === "-h") {
       console.error(
-        "用法: bun run scripts/html_shot.ts <HTML 文件或 URL> " +
+        "用法: lookit html-shot <HTML 文件或 URL> " +
           "[--width N] [--height N] [--scale N] [--wait-ms N] [-o 输出.png]",
       );
       process.exit(0);
@@ -138,49 +138,49 @@ function parseArgv(argv: string[]): Options {
   return options;
 }
 
-async function main(): Promise<void> {
-  const options = parseArgv(process.argv.slice(2));
-  const chrome = findChrome();
-  if (!chrome) {
-    fail("没有找到 Chrome/Chromium/Edge, 请先安装一个浏览器");
-  }
-  let source = options.source;
-  if (!/^(https?|file|data):/.test(source)) {
-    const path = resolve(source);
-    if (!existsSync(path)) {
-      fail(`文件不存在: ${path}`);
+export async function run(argv: string[]): Promise<void> {
+  try {
+    const options = parseArgv(argv);
+    const chrome = findChrome();
+    if (!chrome) {
+      fail("没有找到 Chrome/Chromium/Edge, 请先安装一个浏览器");
     }
-    source = pathToFileURL(path).href;
+    let source = options.source;
+    if (!/^(https?|file|data):/.test(source)) {
+      const path = resolve(source);
+      if (!existsSync(path)) {
+        fail(`文件不存在: ${path}`);
+      }
+      source = pathToFileURL(path).href;
+    }
+    const output = resolve(options.output ?? defaultOutput(source));
+    const args = [
+      chrome,
+      "--headless=new",
+      "--disable-gpu",
+      "--hide-scrollbars",
+      "--no-first-run",
+      "--no-default-browser-check",
+      `--window-size=${options.width},${options.height}`,
+      `--screenshot=${output}`,
+    ];
+    if (options.scale !== 1) {
+      args.push(`--force-device-scale-factor=${options.scale}`);
+    }
+    if (options.waitMs > 0) {
+      args.push(`--virtual-time-budget=${options.waitMs}`);
+    }
+    args.push(source);
+    const result = spawnSync(args[0], args.slice(1), { encoding: "utf8" });
+    if (result.status !== 0 || !existsSync(output)) {
+      const message =
+        result.stderr?.trim() ||
+        result.stdout?.trim() ||
+        (result.error instanceof Error ? `Chrome 启动失败: ${result.error.message}` : `Chrome 退出码 ${result.status ?? "未知"}`);
+      fail(`截图失败: ${message}`);
+    }
+    console.log(`wrote ${output} (${options.width * options.scale}x${options.height * options.scale})`);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
   }
-  const output = resolve(options.output ?? defaultOutput(source));
-  const args = [
-    chrome,
-    "--headless=new",
-    "--disable-gpu",
-    "--hide-scrollbars",
-    "--no-first-run",
-    "--no-default-browser-check",
-    `--window-size=${options.width},${options.height}`,
-    `--screenshot=${output}`,
-  ];
-  if (options.scale !== 1) {
-    args.push(`--force-device-scale-factor=${options.scale}`);
-  }
-  if (options.waitMs > 0) {
-    args.push(`--virtual-time-budget=${options.waitMs}`);
-  }
-  args.push(source);
-  const result = spawnSync(args[0], args.slice(1), { encoding: "utf8" });
-  if (result.status !== 0 || !existsSync(output)) {
-    const message =
-      result.stderr?.trim() ||
-      result.stdout?.trim() ||
-      (result.error instanceof Error ? `Chrome 启动失败: ${result.error.message}` : `Chrome 退出码 ${result.status ?? "未知"}`);
-    fail(`截图失败: ${message}`);
-  }
-  console.log(`wrote ${output} (${options.width * options.scale}x${options.height * options.scale})`);
 }
-
-void main().catch((error) => {
-  fail(error instanceof Error ? error.message : String(error));
-});

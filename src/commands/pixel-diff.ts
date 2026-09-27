@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { cropRgb, imageSize, loadRgb, parseRegion, type Box } from "./image-utils.ts";
+import { cropRgb, imageSize, loadRgb, parseRegion, type Box } from "../shared/image-utils.ts";
 
 type Options = {
   original: string;
@@ -11,7 +11,7 @@ type Options = {
 };
 
 function fail(message: string): never {
-  console.error(`pixel_diff: ${message}`);
+  console.error(`pixel-diff: ${message}`);
   process.exit(1);
 }
 
@@ -61,7 +61,7 @@ function parseArgv(argv: string[]): Options {
       options.output = arg.slice("--output=".length);
     } else if (arg === "--help" || arg === "-h") {
       console.error(
-        "用法: bun run scripts/pixel_diff.ts <原图> <重建图> " +
+        "用法: lookit pixel-diff <原图> <重建图> " +
           "[--grid N] [--top N] [--region X1,Y1,X2,Y2] [-o 热力图.png]",
       );
       process.exit(0);
@@ -120,44 +120,44 @@ function cellScores(diff: Uint8Array, width: number, height: number, grid: numbe
   return scores.sort((a, b) => b.score - a.score);
 }
 
-async function main(): Promise<void> {
-  const options = parseArgv(process.argv.slice(2));
-  const original = await loadRgb(options.original);
-  const rawSize = await imageSize(options.rebuilt);
-  const rebuilt = await loadRgb(options.rebuilt, {
-    size: { width: original.width, height: original.height },
-  });
-  if (rawSize.width !== original.width || rawSize.height !== original.height) {
-    console.log(`提示: 重建图原尺寸为 ${rawSize.width}x${rawSize.height}, 已缩放到 ${original.width}x${original.height}`);
-  }
-  const regionBox = options.region ? parseRegion(options.region, original.width, original.height) : undefined;
-  const offset: Box = regionBox ?? { x1: 0, y1: 0, x2: original.width, y2: original.height };
-  const originalRegion = regionBox ? cropRgb(original, regionBox) : original;
-  const rebuiltRegion = regionBox ? cropRgb(rebuilt, regionBox) : rebuilt;
-  const diff = difference(originalRegion.data, rebuiltRegion.data);
-  let graySum = 0;
-  for (let index = 0; index < diff.length; index += 3) {
-    graySum += grayAt(diff, index);
-  }
-  const overall = (graySum / originalRegion.width / originalRegion.height / 255) * 100;
-  const scope = options.region ? ` (区域 ${options.region})` : "";
-  console.log(`整体差异${scope}: ${overall.toFixed(2)}%`);
-  if (options.output) {
-    await sharp(Buffer.from(diff), {
-      raw: { width: originalRegion.width, height: originalRegion.height, channels: 3 },
-    }).toFile(options.output);
-    console.log(`热力图: ${options.output}`);
-  }
-  for (const [index, cell] of cellScores(diff, originalRegion.width, originalRegion.height, options.grid)
-    .slice(0, options.top)
-    .entries()) {
-    console.log(
-      `${index + 1}. ${cell.score.toFixed(2)}% x1: ${cell.box.x1 + offset.x1}, y1: ${cell.box.y1 + offset.y1}, ` +
-        `x2: ${cell.box.x2 + offset.x1}, y2: ${cell.box.y2 + offset.y1}`,
-    );
+export async function run(argv: string[]): Promise<void> {
+  try {
+    const options = parseArgv(argv);
+    const original = await loadRgb(options.original);
+    const rawSize = await imageSize(options.rebuilt);
+    const rebuilt = await loadRgb(options.rebuilt, {
+      size: { width: original.width, height: original.height },
+    });
+    if (rawSize.width !== original.width || rawSize.height !== original.height) {
+      console.log(`提示: 重建图原尺寸为 ${rawSize.width}x${rawSize.height}, 已缩放到 ${original.width}x${original.height}`);
+    }
+    const regionBox = options.region ? parseRegion(options.region, original.width, original.height) : undefined;
+    const offset: Box = regionBox ?? { x1: 0, y1: 0, x2: original.width, y2: original.height };
+    const originalRegion = regionBox ? cropRgb(original, regionBox) : original;
+    const rebuiltRegion = regionBox ? cropRgb(rebuilt, regionBox) : rebuilt;
+    const diff = difference(originalRegion.data, rebuiltRegion.data);
+    let graySum = 0;
+    for (let index = 0; index < diff.length; index += 3) {
+      graySum += grayAt(diff, index);
+    }
+    const overall = (graySum / originalRegion.width / originalRegion.height / 255) * 100;
+    const scope = options.region ? ` (区域 ${options.region})` : "";
+    console.log(`整体差异${scope}: ${overall.toFixed(2)}%`);
+    if (options.output) {
+      await sharp(Buffer.from(diff), {
+        raw: { width: originalRegion.width, height: originalRegion.height, channels: 3 },
+      }).toFile(options.output);
+      console.log(`热力图: ${options.output}`);
+    }
+    for (const [index, cell] of cellScores(diff, originalRegion.width, originalRegion.height, options.grid)
+      .slice(0, options.top)
+      .entries()) {
+      console.log(
+        `${index + 1}. ${cell.score.toFixed(2)}% x1: ${cell.box.x1 + offset.x1}, y1: ${cell.box.y1 + offset.y1}, ` +
+          `x2: ${cell.box.x2 + offset.x1}, y2: ${cell.box.y2 + offset.y1}`,
+      );
+    }
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
   }
 }
-
-void main().catch((error) => {
-  fail(error instanceof Error ? error.message : String(error));
-});

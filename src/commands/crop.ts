@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
 import sharp from "sharp";
-import { imageSize, parseRegion } from "./image-utils.ts";
+import { imageSize, parseRegion } from "../shared/image-utils.ts";
 
 type Options = {
   image: string;
@@ -51,7 +51,7 @@ function parseArgv(argv: string[]): Options {
       options.scale = integerValue(arg.slice("--scale=".length), "--scale");
     } else if (arg === "--help" || arg === "-h") {
       console.error(
-        "用法: bun run scripts/crop.ts <图片> --region X1,Y1,X2,Y2 [-o 输出.png] [--scale N]",
+        "用法: lookit crop <图片> --region X1,Y1,X2,Y2 [-o 输出.png] [--scale N]",
       );
       process.exit(0);
     } else if (arg.startsWith("-") && arg !== "-") {
@@ -72,39 +72,39 @@ function defaultOutput(image: string, scale: number): string {
   return join(dirname(image), `${basename(image, extname(image))}${suffix}.png`);
 }
 
-async function main(): Promise<void> {
-  const options = parseArgv(process.argv.slice(2));
-  if (!existsSync(options.image)) {
-    fail(`图片不存在: ${options.image}`);
-  }
-  if (!options.region) {
-    fail("需要 --region X1,Y1,X2,Y2");
-  }
-  const { width, height } = await imageSize(options.image);
-  const box = parseRegion(options.region, width, height);
-  const parts = options.region.split(",").map(Number);
-  const requested = [parts[0], parts[1], parts[2], parts[3]];
-  const actual = [box.x1, box.y1, box.x2, box.y2];
-  if (requested.some((value, index) => value !== actual[index])) {
-    console.error(`crop: 区域 ${options.region} 已收敛为 ${actual.join(",")}`);
-  }
-  const output = options.output ?? defaultOutput(options.image, options.scale);
-  let pipeline = sharp(options.image, { failOn: "none" }).extract({
-    left: box.x1,
-    top: box.y1,
-    width: box.x2 - box.x1,
-    height: box.y2 - box.y1,
-  });
-  if (options.scale > 1) {
-    pipeline = pipeline.resize((box.x2 - box.x1) * options.scale, (box.y2 - box.y1) * options.scale, {
-      fit: "fill",
-      kernel: sharp.kernel.lanczos3,
+export async function run(argv: string[]): Promise<void> {
+  try {
+    const options = parseArgv(argv);
+    if (!existsSync(options.image)) {
+      fail(`图片不存在: ${options.image}`);
+    }
+    if (!options.region) {
+      fail("需要 --region X1,Y1,X2,Y2");
+    }
+    const { width, height } = await imageSize(options.image);
+    const box = parseRegion(options.region, width, height);
+    const parts = options.region.split(",").map(Number);
+    const requested = [parts[0], parts[1], parts[2], parts[3]];
+    const actual = [box.x1, box.y1, box.x2, box.y2];
+    if (requested.some((value, index) => value !== actual[index])) {
+      console.error(`crop: 区域 ${options.region} 已收敛为 ${actual.join(",")}`);
+    }
+    const output = options.output ?? defaultOutput(options.image, options.scale);
+    let pipeline = sharp(options.image, { failOn: "none" }).extract({
+      left: box.x1,
+      top: box.y1,
+      width: box.x2 - box.x1,
+      height: box.y2 - box.y1,
     });
+    if (options.scale > 1) {
+      pipeline = pipeline.resize((box.x2 - box.x1) * options.scale, (box.y2 - box.y1) * options.scale, {
+        fit: "fill",
+        kernel: sharp.kernel.lanczos3,
+      });
+    }
+    await pipeline.png().toFile(output);
+    console.log(`wrote ${output} (${(box.x2 - box.x1) * options.scale}x${(box.y2 - box.y1) * options.scale})`);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
   }
-  await pipeline.png().toFile(output);
-  console.log(`wrote ${output} (${(box.x2 - box.x1) * options.scale}x${(box.y2 - box.y1) * options.scale})`);
 }
-
-void main().catch((error) => {
-  fail(error instanceof Error ? error.message : String(error));
-});

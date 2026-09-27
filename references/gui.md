@@ -10,7 +10,7 @@
 2. 优先 UI tree, 视觉兜底: 如果环境有 UI tree (Android uiautomator dump, desktop accessibility tree, browser DOM), 从 tree 读坐标和状态. 用 `ground` 只在没有 tree, 目标不在 tree, 或需要验证视觉状态时. 用 `ground` 时取中心而不是边缘.
 3. 固定元素先 ground 一次, 记录坐标表; 布局变化后失效.
 4. 每个动作一张新截图: 动作会改变状态, 滚动会让所有 box 失效. 不要在一张过期截图上连续点击.
-5. 验证状态问题: `glance <after.png> -q "expected state question"`. 回答不对就停止, 重新 `detect`, 不要对着假设继续. 小变化先 `pixel_diff before after`, 再 `glance --region`.
+5. 验证状态问题: `glance <after.png> -q "expected state question"`. 回答不对就停止, 重新 `detect`, 不要对着假设继续. 小变化先 `pixel-diff before after`, 再 `glance --region`.
 6. 输入后读回字段: `glance --region <box> --ocr` 确认文字落地.
 
 ## Verify

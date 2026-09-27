@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { convertBuffer } from "@visioncortex/vtracer";
 import sharp from "sharp";
-import { imageSize, parseRegion } from "./image-utils.ts";
+import { imageSize, parseRegion } from "../shared/image-utils.ts";
 
 type Options = {
   image: string;
@@ -62,7 +62,7 @@ function parseArgv(argv: string[]): Options {
       options.output = arg.slice("--output=".length);
     } else if (arg === "--help" || arg === "-h") {
       console.error(
-        "用法: bun run scripts/trace.ts <图片> [--region X1,Y1,X2,Y2] [--scale N] [--polygon] [--color] [-o 输出.svg]",
+        "用法: lookit trace <图片> [--region X1,Y1,X2,Y2] [--scale N] [--polygon] [--color] [-o 输出.svg]",
       );
       process.exit(0);
     } else if (arg.startsWith("-") && arg !== "-") {
@@ -125,37 +125,37 @@ function truncateDecimals(svg: string): string {
   return svg.replace(/-?\d+\.\d{3,}/g, (match) => Number(match).toFixed(2));
 }
 
-async function main(): Promise<void> {
-  const options = parseArgv(process.argv.slice(2));
-  if (!existsSync(options.image)) {
-    fail(`图片不存在: ${options.image}`);
-  }
-  const { buffer, scale } = await preparePng(options.image, options.region, options.scale);
-  const svg = truncateDecimals(
-    stripBackground(
-      convertBuffer(buffer, {
-        mode: options.polygon ? "polygon" : "spline",
-        filterSpeckle: 8,
-        cornerThreshold: 40,
-        clustering: options.color ? "color-cluster" : "bw",
-      }),
-    ),
-  );
-  const paths = (svg.match(/<path/g) ?? []).length;
-  if (!paths) {
-    console.error(
-      "trace: 0 条路径, 二值化后没有内容. 尝试增大 --scale, 用 --region 更贴近图形, 或对浅色背景深色图形先反色. " +
-        "--color 是最后手段, 抗锯齿图片会按每个灰度级别拆成路径.",
+export async function run(argv: string[]): Promise<void> {
+  try {
+    const options = parseArgv(argv);
+    if (!existsSync(options.image)) {
+      fail(`图片不存在: ${options.image}`);
+    }
+    const { buffer, scale } = await preparePng(options.image, options.region, options.scale);
+    const svg = truncateDecimals(
+      stripBackground(
+        convertBuffer(buffer, {
+          mode: options.polygon ? "polygon" : "spline",
+          filterSpeckle: 8,
+          cornerThreshold: 40,
+          clustering: options.color ? "color-cluster" : "bw",
+        }),
+      ),
     );
-  }
-  if (options.output) {
-    await Bun.write(options.output, svg);
-    console.log(`已写入 ${options.output} (${svg.length} 字节, ${paths} 条路径, ${scale} 倍缩放)`);
-  } else {
-    console.log(svg);
+    const paths = (svg.match(/<path/g) ?? []).length;
+    if (!paths) {
+      console.error(
+        "trace: 0 条路径, 二值化后没有内容. 尝试增大 --scale, 用 --region 更贴近图形, 或对浅色背景深色图形先反色. " +
+          "--color 是最后手段, 抗锯齿图片会按每个灰度级别拆成路径.",
+      );
+    }
+    if (options.output) {
+      await Bun.write(options.output, svg);
+      console.log(`已写入 ${options.output} (${svg.length} 字节, ${paths} 条路径, ${scale} 倍缩放)`);
+    } else {
+      console.log(svg);
+    }
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
   }
 }
-
-void main().catch((error) => {
-  fail(error instanceof Error ? error.message : String(error));
-});

@@ -1,4 +1,4 @@
-import { locate, position, type Match } from "./ground-utils.ts";
+import { locate, position, type Match } from "../shared/ground-utils.ts";
 
 type Options = {
   image: string;
@@ -27,7 +27,7 @@ function parseArgv(argv: string[]): Options {
     } else if (arg.startsWith("--region=")) {
       region = arg.slice("--region=".length);
     } else if (arg === "--help" || arg === "-h") {
-      console.error("用法: bun run scripts/detect.ts <图片> [类别] [--region X1,Y1,X2,Y2]");
+      console.error("用法: lookit detect <图片> [类别] [--region X1,Y1,X2,Y2]");
       process.exit(0);
     } else if (arg.startsWith("-") && arg !== "-") {
       fail(`未知选项: ${arg}`);
@@ -59,14 +59,14 @@ function formatInventory(matches: Match[], width: number, height: number): strin
   });
 }
 
-async function main(): Promise<void> {
-  const options = parseArgv(process.argv.slice(2));
-  const { matches, width, height } = await locate(options.image, buildTarget(options.category), options.region);
-  for (const line of formatInventory(matches, width, height)) {
-    console.log(line);
+export async function run(argv: string[]): Promise<void> {
+  try {
+    const options = parseArgv(argv);
+    const { matches, width, height } = await locate(options.image, buildTarget(options.category), options.region);
+    for (const line of formatInventory(matches, width, height)) {
+      console.log(line);
+    }
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
   }
 }
-
-void main().catch((error) => {
-  fail(error instanceof Error ? error.message : String(error));
-});

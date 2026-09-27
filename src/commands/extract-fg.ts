@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
 import sharp from "sharp";
-import { imageSize, parseHex, parseRegion } from "./image-utils.ts";
+import { imageSize, parseHex, parseRegion } from "../shared/image-utils.ts";
 
 type Options = {
   images: string[];
@@ -22,7 +22,7 @@ type Box = { x1: number; y1: number; x2: number; y2: number };
 type RgbaImage = { data: Uint8Array; width: number; height: number };
 
 function fail(message: string): never {
-  console.error(`extract_fg: ${message}`);
+  console.error(`extract-fg: ${message}`);
   process.exit(1);
 }
 
@@ -134,7 +134,7 @@ function parseArgv(argv: string[]): Options {
       options.pad = integerValue(arg.slice("--pad=".length), "--pad", 0);
     } else if (arg === "--help" || arg === "-h") {
       console.error(
-        "用法: bun run scripts/extract_fg.ts <图片> [<图片> ...] " +
+        "用法: lookit extract-fg <图片> [<图片> ...] " +
           "[--region X1,Y1,X2,Y2] [-o 输出.png] [--mode color|dark] " +
           "[--sat N] [--dark N] [--exclude-color #RRGGBB] [--exclude-tol N] " +
           "[--pad N] [--disc-radius N] [--boxes X1,Y1,X2,Y2] [--no-keep-whites]",
@@ -500,13 +500,13 @@ function compBoxFromPixels(pixels: number[], width: number): Box {
   return { x1, y1, x2, y2 };
 }
 
-async function main(): Promise<void> {
-  const options = parseArgv(process.argv.slice(2));
-  for (const image of options.images) {
-    await processOne(image, options);
+export async function run(argv: string[]): Promise<void> {
+  try {
+    const options = parseArgv(argv);
+    for (const image of options.images) {
+      await processOne(image, options);
+    }
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
   }
 }
-
-void main().catch((error) => {
-  fail(error instanceof Error ? error.message : String(error));
-});
