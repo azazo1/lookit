@@ -1,11 +1,13 @@
 ---
 name: lookit
-description: 给无视觉能力模型提供的本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片), ground (定位目标并输出像素框), detect (盘点元素), trace (本地把图片转为 SVG 几何), crop (把像素盒裁成文件), extract_fg (提取图标前景), html_shot (HTML 截图), model-svg (让视觉模型直接生成 SVG), dominant_colors, pixel_diff, ascii (图片转 ASCII 像素网格) 和 human (人工注解图片). 适用于图片问答, 文字提取, 元素定位, 图片对比, HTML/SVG 还原等需要看图的场景.
+description: 给无视觉能力模型提供的本地视觉 CLI 工具集, 提供 glance (描述/提问/OCR 图片), ground (定位目标并输出像素框), detect (盘点元素), trace (本地把图片转为 SVG 几何), crop (把像素盒裁成文件), extract_fg (提取图标前景), html_shot (HTML 截图), model-svg (让视觉模型直接生成 SVG), dominant_colors, pixel_diff, ascii (图片转 ASCII 像素网格) 和 human (人工注解图片). 适用于图片问答, 文字提取, 元素定位, 图片对比, HTML/SVG 还原等需要看图的场景. 本技能面向没有视觉能力的模型; 如果图片已经进入你的上下文, 再用本技能读同一张图通常无法发现更多问题.
 ---
 
 # lookit
 
 `lookit` 让没有视觉能力的 agent 拥有看图能力. 子命令共享同一份视觉配置 (`LOOKIT_API_KEY` / `LOOKIT_BASE_URL` / `LOOKIT_MODEL` / `LOOKIT_LANG`), 不需要额外凭证.
+
+本技能面向没有视觉能力的模型. 如果图片已经进入你的上下文, 再用本技能读同一张图通常无法发现更多问题.
 
 安装后在任意目录调用 `lookit <子命令> ...`. 在仓库根目录执行 `just install` (`bun install` + `bun link`) 把 `lookit` 挂到 PATH. 图片路径建议使用绝对路径.
 
